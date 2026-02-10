@@ -24,7 +24,37 @@ local LegitAimbotModule = {
     },
     Connection = nil
 }
+repeat task.wait() until game:IsLoaded()
 
+local function isAdonisAC(tab) 
+    return rawget(tab,"Detected") and typeof(rawget(tab,"Detected"))=="function" and rawget(tab,"RLocked") 
+end
+for _,v in next,getgc(true) do 
+    if typeof(v)=="table" and isAdonisAC(v) then 
+        for i,f in next,v do 
+            if rawequal(i,"Detected") then 
+                local old 
+                old=hookfunction(f,function(action,info,crash)
+                    if rawequal(action,"_") and rawequal(info,"_") and rawequal(crash,false) then 
+                        return old(action,info,crash) 
+                    end 
+                    return task.wait(9e9) 
+                end) 
+                warn("bypassed") 
+                break 
+            end 
+        end 
+    end 
+end
+for _,v in pairs(getgc(true)) do 
+    if type(v)=="table" then 
+        local func=rawget(v,"DTXC1") 
+        if type(func)=="function" then 
+            hookfunction(func,function() return end) 
+            break 
+        end 
+    end 
+end
 local function InitializeLegitAimbot()
     local RunService = game:GetService("RunService")
     local Players = game:GetService("Players")
