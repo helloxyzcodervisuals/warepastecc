@@ -364,6 +364,262 @@ Sec2:CreateButton("Reset All Chams", function()
     end
     LegitAimbotModule.ItemsChams.OriginalData = {}
 end)
+local SilentAimModule = {
+    Enabled = false,
+    Settings = {
+        FOV = 120,
+        TargetMode = "Mouse",
+        VisibleCheck = true,
+        ForcefieldCheck = true,
+        DownedCheck = true,
+        DiedCheck = true,
+        TeamCheck = true
+    },
+    Target = nil,
+    IsTargetting = false
+}
+
+local function InitializeSilentAim()
+    local Players = game:GetService("Players")
+    local Workspace = game:GetService("Workspace")
+    local UserInputService = game:GetService("UserInputService")
+    local RunService = game:GetService("RunService")
+    local Camera = Workspace.CurrentCamera
+    local LocalPlayer = Players.LocalPlayer
+    
+    local function HasCharacter(player)
+        return player and player.Character and player.Character:FindFirstChildWhichIsA("Humanoid")
+    end
+    
+    local function GetHealth(character)
+        local humanoid = character:FindFirstChildOfClass("Humanoid")
+        if humanoid then
+            return humanoid.Health
+        end
+        return 100
+    end
+    
+    local function IsAlive(character)
+        local humanoid = character:FindFirstChildOfClass("Humanoid")
+        if humanoid then
+            return humanoid.Health > 0
+        end
+        return false
+    end
+    
+    local function HasForcefield(character)
+        if not character then return false end
+        for _, child in ipairs(character:GetChildren()) do
+            if child:IsA("ForceField") then
+                return true
+            end
+        end
+        return false
+    end
+    
+    local function IsVisible(targetPart, origin)
+        if not origin then
+            origin = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Head")
+            if not origin then return false end
+        end
+        
+        local raycastParams = RaycastParams.new()
+        raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+        raycastParams.FilterDescendantsInstances = {LocalPlayer.Character}
+        
+        local direction = (targetPart.Position - origin.Position).Unit
+        local raycastResult = workspace:Raycast(origin.Position, direction * 1000, raycastParams)
+        
+        if raycastResult then
+            local hitPart = raycastResult.Instance
+            local hitChar = hitPart:FindFirstAncestorOfClass("Model")
+            return hitChar == targetPart.Parent
+        end
+        return true
+    end
+    
+    local function WorldToScreen(position)
+        local viewport_position, on_screen = Camera:WorldToViewportPoint(position)
+        return {position = Vector2.new(viewport_position.X, viewport_position.Y), on_screen = on_screen}
+    end
+    
+    local function GetClosestByMouse()
+        local mouse_position = UserInputService:GetMouseLocation()
+        local radius = SilentAimModule.Settings.FOV
+        local closest_player
+        
+        for _, player in Players:GetPlayers() do
+            if player == LocalPlayer then continue end
+            
+            if SilentAimModule.Settings.TeamCheck and player.Team == LocalPlayer.Team then
+                continue
+            end
+            
+            if not HasCharacter(player) then continue end
+            
+            local character = player.Character
+            local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+            if not humanoidRootPart then continue end
+            
+            if SilentAimModule.Settings.DiedCheck and not IsAlive(character) then
+                continue
+            end
+            
+            if SilentAimModule.Settings.DownedCheck and GetHealth(character) < 15 then
+                continue
+            end
+            
+            if SilentAimModule.Settings.ForcefieldCheck and HasForcefield(character) then
+                continue
+            end
+            
+            local head = character:FindFirstChild("Head")
+            if not head then continue end
+            
+            if SilentAimModule.Settings.VisibleCheck and not IsVisible(head) then
+                continue
+            end
+            
+            local screen_position = WorldToScreen(humanoidRootPart.Position)
+            
+            if not screen_position.on_screen then continue end
+            
+            local distance = (mouse_position - screen_position.position).Magnitude
+            
+            if distance <= radius then 
+                radius = distance
+                closest_player = player
+            end
+        end
+        
+        return closest_player
+    end
+    
+    local function GetClosestByPosition()
+        local camera_pos = Camera.CFrame.Position
+        local closest_dist = math.huge
+        local closest_player
+        
+        for _, player in Players:GetPlayers() do
+            if player == LocalPlayer then continue end
+            
+            if SilentAimModule.Settings.TeamCheck and player.Team == LocalPlayer.Team then
+                continue
+            end
+            
+            if not HasCharacter(player) then continue end
+            
+            local character = player.Character
+            local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+            if not humanoidRootPart then continue end
+            
+            if SilentAimModule.Settings.DiedCheck and not IsAlive(character) then
+                continue
+            end
+            
+            if SilentAimModule.Settings.DownedCheck and GetHealth(character) < 15 then
+                continue
+            end
+            
+            if SilentAimModule.Settings.ForcefieldCheck and HasForcefield(character) then
+                continue
+            end
+            
+            local head = character:FindFirstChild("Head")
+            if not head then continue end
+            
+            if SilentAimModule.Settings.VisibleCheck and not IsVisible(head) then
+                continue
+            end
+            
+            local distance = (camera_pos - humanoidRootPart.Position).Magnitude
+            
+            if distance < closest_dist then 
+                closest_dist = distance
+                closest_player = player
+            end
+        end
+        
+        return closest_player
+    end
+    
+    RunService.RenderStepped:Connect(function()
+        if not SilentAimModule.Enabled then
+            SilentAimModule.Target = nil
+            SilentAimModule.IsTargetting = false
+            return
+        end
+        
+        local new_target
+        if SilentAimModule.Settings.TargetMode == "Mouse" then
+            new_target = GetClosestByMouse()
+        else
+            new_target = GetClosestByPosition()
+        end
+        
+        SilentAimModule.IsTargetting = new_target and true or false
+        SilentAimModule.Target = new_target or nil
+    end)
+    
+    local old_namecall
+    old_namecall = hookmetamethod(game, "__namecall", function(self, ...)
+        local args, method = {...}, tostring(getnamecallmethod())
+        
+        if not checkcaller() and SilentAimModule.IsTargetting and SilentAimModule.Target and 
+           self == Workspace and method == "Raycast" and SilentAimModule.Enabled then
+            
+            local origin = args[1]
+            local character = SilentAimModule.Target.Character
+            if character and character:FindFirstChild("HumanoidRootPart") then
+                local direction = (character.HumanoidRootPart.Position - origin).Unit * 1000
+                args[2] = direction
+                return old_namecall(self, unpack(args))
+            end
+        end
+        
+        return old_namecall(self, ...)
+    end)
+end
+
+InitializeSilentAim()
+local Sec3 = Tab1:CreateSection("Silent Aim", "Left")
+
+Sec3:CreateToggle("Enable Silent Aim", false, function(v)
+    SilentAimModule.Enabled = v
+end)
+
+Sec3:CreateToggle("Visible Check", true, function(v)
+    SilentAimModule.Settings.VisibleCheck = v
+end)
+
+Sec3:CreateToggle("Forcefield Check", true, function(v)
+    SilentAimModule.Settings.ForcefieldCheck = v
+end)
+
+Sec3:CreateToggle("Downed Check", true, function(v)
+    SilentAimModule.Settings.DownedCheck = v
+end)
+
+Sec3:CreateToggle("Died Check", true, function(v)
+    SilentAimModule.Settings.DiedCheck = v
+end)
+
+Sec3:CreateToggle("Team Check", true, function(v)
+    SilentAimModule.Settings.TeamCheck = v
+end)
+
+Sec3:CreateSlider("FOV Size", 0, 360, 120, "°", function(v)
+    SilentAimModule.Settings.FOV = v
+end)
+
+Sec3:CreateListbox("Target Mode", {"Mouse", "Position"}, false, function(v)
+    SilentAimModule.Settings.TargetMode = v
+end)
+
+Sec3:CreateButton("Test Silent Aim", function()
+    print("Silent Aim Test")
+end)
+    
 local VisualModule = {
     ESP = {
         Enabled = false,
@@ -863,56 +1119,149 @@ end)
 Sec1:CreateColorpicker("Friend Color", Color3.fromRGB(0, 150, 255), function(c)
     VisualModule.ESP.FriendColor = c
 end)
+local BulletTracersModule = {
+    Enabled = false,
+    Settings = {
+        Lifetime = 1,
+        Width = 0.1,
+        Color = Color3.fromRGB(255, 255, 255),
+        Enabled = false
+    }
+}
 
-local Sec2 = Tab1:CreateSection("Player Chams", "Right")
-
-Sec2:CreateToggle("Enable Chams", false, function(v)
-    VisualModule.PlayerChams.Enabled = v
-end)
-
-Sec2:CreateToggle("Box Chams", true, function(v)
-    VisualModule.PlayerChams.BoxChams = v
-end)
-
-Sec2:CreateToggle("Wall Check", true, function(v)
-    VisualModule.PlayerChams.WallCheck = v
-end)
-
-Sec2:CreateToggle("Light Effect", true, function(v)
-    VisualModule.PlayerChams.LightEnabled = v
-end)
-
-Sec2:CreateToggle("Glow Effect", true, function(v)
-    VisualModule.PlayerChams.GlowEnabled = v
-end)
-
-Sec2:CreateSlider("Transparency", 0, 1, 0, "", function(v)
-    VisualModule.PlayerChams.Transparency = v
-end)
-
-Sec2:CreateSlider("Border Transparency", 0, 1, 0.5, "", function(v)
-    VisualModule.PlayerChams.BorderTransparency = v
-end)
-
-Sec2:CreateSlider("Wall Transparency", 0, 1, 0.3, "", function(v)
-    VisualModule.PlayerChams.WallTransparency = v
-end)
-
-Sec2:CreateColorpicker("Chams Color", Color3.fromRGB(170, 0, 255), function(c)
-    VisualModule.PlayerChams.Color = c
-end)
-
-Sec2:CreateColorpicker("Border Color", Color3.new(1, 1, 1), function(c)
-    VisualModule.PlayerChams.BorderColor = c
-end)
-
-Sec2:CreateColorpicker("Wall Color", Color3.new(1, 1, 1), function(c)
-    VisualModule.PlayerChams.WallColor = c
-end)
-
-Sec2:CreateButton("Refresh Visuals", function()
-    if cleanupVisuals then
-        cleanupVisuals()
+local function InitializeBulletTracers()
+    local Players = game:GetService("Players")
+    local RunService = game:GetService("RunService")
+    local Workspace = game:GetService("Workspace")
+    local TweenService = game:GetService("TweenService")
+    local Camera = Workspace.CurrentCamera
+    local LocalPlayer = Players.LocalPlayer
+    
+    local function createTracer(startPos, endPos)
+        if not BulletTracersModule.Enabled or not BulletTracersModule.Settings.Enabled then return end
+        
+        local tracerModel = Instance.new("Model")
+        tracerModel.Name = "Tracer"
+        
+        local beam = Instance.new("Beam")
+        beam.Color = ColorSequence.new(BulletTracersModule.Settings.Color)
+        beam.Width0 = BulletTracersModule.Settings.Width
+        beam.Width1 = BulletTracersModule.Settings.Width
+        beam.Texture = "rbxassetid://7136858729"
+        beam.TextureSpeed = 1
+        beam.Brightness = 2
+        beam.LightEmission = 1
+        beam.FaceCamera = true
+        
+        local a0 = Instance.new("Attachment")
+        local a1 = Instance.new("Attachment")
+        a0.WorldPosition = startPos
+        a1.WorldPosition = endPos
+        beam.Attachment0 = a0
+        beam.Attachment1 = a1
+        
+        beam.Parent = tracerModel
+        a0.Parent = tracerModel
+        a1.Parent = tracerModel
+        tracerModel.Parent = Workspace
+        
+        local tweenInfo = TweenInfo.new(BulletTracersModule.Settings.Lifetime, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
+        local tween = TweenService:Create(beam, tweenInfo, {Brightness = 0, Width0 = 0, Width1 = 0})
+        tween:Play()
+        
+        tween.Completed:Connect(function()
+            if tracerModel then 
+                tracerModel:Destroy() 
+            end 
+        end)
+        
+        task.delay(BulletTracersModule.Settings.Lifetime + 0.1, function()
+            if tracerModel and tracerModel.Parent then 
+                tracerModel:Destroy() 
+            end 
+        end)
     end
-    InitializeVisuals()
+    
+    local function trackGlobalBullets()
+        if _G.TracersRunning then return end
+        _G.TracersRunning = true
+        
+        local bfr = Camera:FindFirstChild("Bullets")
+        if not bfr then 
+            bfr = Instance.new("Folder") 
+            bfr.Name = "Bullets" 
+            bfr.Parent = Camera 
+        end
+        
+        local function trackBullet(blt)
+            if not blt:IsA("BasePart") then return end
+            
+            local stp = blt.Position
+            local lsp = stp
+            local stc = 0
+            local con
+            
+            con = RunService.Heartbeat:Connect(function()
+                if not blt or not blt.Parent then
+                    con:Disconnect()
+                    if (lsp - stp).Magnitude > 1 then 
+                        createTracer(stp, lsp) 
+                    end
+                    return
+                end
+                
+                local cp = blt.Position
+                if (cp - lsp).Magnitude < 0.1 then
+                    stc = stc + 1
+                    if stc > 3 then 
+                        con:Disconnect() 
+                        if (cp - stp).Magnitude > 1 then 
+                            createTracer(stp, cp) 
+                        end 
+                    end
+                else 
+                    stc = 0 
+                    lsp = cp 
+                end
+            end)
+        end
+        
+        bfr.ChildAdded:Connect(trackBullet)
+        for _, v in ipairs(bfr:GetChildren()) do 
+            trackBullet(v) 
+        end
+    end
+    
+    trackGlobalBullets()
+end
+
+InitializeBulletTracers()
+
+local Sec1 = Tab1:CreateSection("Bullet Tracers", "Right")
+
+Sec1:CreateToggle("Enable Tracers", false, function(v)
+    BulletTracersModule.Enabled = v
+end)
+
+Sec1:CreateToggle("Show Tracers", false, function(v)
+    BulletTracersModule.Settings.Enabled = v
+end)
+
+Sec1:CreateSlider("Tracer Lifetime", 0.1, 5, 1, "s", function(v)
+    BulletTracersModule.Settings.Lifetime = v
+end)
+
+Sec1:CreateSlider("Tracer Width", 0.01, 1, 0.1, "witdh", function(v)
+    BulletTracersModule.Settings.Width = v
+end)
+
+Sec1:CreateColorpicker("Tracer Color", Color3.fromRGB(255, 255, 255), function(c)
+    BulletTracersModule.Settings.Color = c
+end)
+
+Sec1:CreateButton("Test Tracer", function()
+    local camera = workspace.CurrentCamera
+    local startPos = camera.CFrame.Position
+    local endPos = startPos + (camera.CFrame.LookVector * 100)
+    createTracer(startPos, endPos)
 end)
