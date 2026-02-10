@@ -24,6 +24,7 @@ local LegitAimbotModule = {
     },
     Connection = nil
 }
+--a
 repeat task.wait() until game:IsLoaded()
 
 local function isAdonisAC(tab) 
