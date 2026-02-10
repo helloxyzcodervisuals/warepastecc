@@ -127,6 +127,7 @@ local function InitializeLegitAimbot()
                 end
             end
         end
+    end
 
 
     
