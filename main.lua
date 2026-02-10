@@ -1060,7 +1060,103 @@ end)
 Sec1:CreateColorpicker("Tracer Color", Color3.fromRGB(255, 255, 255), function(c)
     BulletTracersModule.Settings.Color = c
 end)
+local CharacterRenderModule = {
+    Enabled = false,
+    Color = Color3.fromRGB(170, 0, 255),
+    Transparency = 0.3
+}
 
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+
+local OriginalData = {}
+
+local function updateCharacterRender()
+    if CharacterRenderModule.Enabled then
+        local character = LocalPlayer.Character
+        if character then
+            for _, part in ipairs(character:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    if not OriginalData[part] then
+                        OriginalData[part] = {
+                            Color = part.Color,
+                            Transparency = part.Transparency,
+                            Material = part.Material
+                        }
+                    end
+                    
+                    part.Color = CharacterRenderModule.Color
+                    part.Transparency = CharacterRenderModule.Transparency
+                    part.Material = Enum.Material.ForceField
+                end
+            end
+        end
+    else
+        for part, data in pairs(OriginalData) do
+            if part and part.Parent then
+                part.Color = data.Color
+                part.Transparency = data.Transparency
+                part.Material = data.Material
+            end
+        end
+        OriginalData = {}
+    end
+end
+
+local renderConnection
+local function setupCharacterRender()
+    if renderConnection then
+        renderConnection:Disconnect()
+    end
+    
+    if CharacterRenderModule.Enabled then
+        renderConnection = RunService.RenderStepped:Connect(updateCharacterRender)
+    end
+end
+
+LocalPlayer.CharacterAdded:Connect(function()
+    OriginalData = {}
+    if CharacterRenderModule.Enabled then
+        task.wait(1)
+        updateCharacterRender()
+    end
+end)
+
+local Sec2 = Tab1:CreateSection("rendering", "Right")
+
+Sec2:CreateToggle("Enable Character Render", false, function(v)
+    CharacterRenderModule.Enabled = v
+    setupCharacterRender()
+end)
+
+Sec2:CreateColorpicker("Render Color", Color3.fromRGB(170, 0, 255), function(c)
+    CharacterRenderModule.Color = c
+    if CharacterRenderModule.Enabled then
+        local character = LocalPlayer.Character
+        if character then
+            for _, part in ipairs(character:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    part.Color = c
+                end
+            end
+        end
+    end
+end)
+
+Sec2:CreateSlider("Transparency", 0, 1, 0.3, "", function(v)
+    CharacterRenderModule.Transparency = v
+    if CharacterRenderModule.Enabled then
+        local character = LocalPlayer.Character
+        if character then
+            for _, part in ipairs(character:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    part.Transparency = v
+                end
+            end
+        end
+    end
+end)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
@@ -1230,7 +1326,7 @@ local function createHitNotification(toolName, offsetValue, playerName)
         label.BackgroundTransparency = 1
         label.BorderSizePixel = 0
         label.TextColor3 = seg[2]
-        label.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json")
+        label.FontFace = 
         label.TextSize = 10
         label.Text = seg[1]
         label.AutomaticSize = Enum.AutomaticSize.XY
@@ -1924,7 +2020,6 @@ local function disableSpeed()
         if humanoid then humanoid.WalkSpeed = 16 end 
     end
 end
-
 local function startFlying()
     local Char = LocalPlayer.Character
     if not Char then return end
@@ -1933,7 +2028,6 @@ local function startFlying()
     if not Hum or not Root then return end
     
     local RagdollEvent = ReplicatedStorage:WaitForChild("Events"):WaitForChild("__RZDONL")
-    --RagdollEvent:FireServer("__---r",Vector3.zero,CFrame.new(-4574,3,-443,0,0,1,0,1,0,-1,0,0),false)
     
     for _,child in ipairs(Char:GetDescendants()) do 
         if child:IsA("Motor6D") then child.Enabled = false end 
@@ -1994,15 +2088,45 @@ end
 
 local function disableFlying()
     flyEnabled = false
-    if flyConnection then flyConnection:Disconnect() flyConnection = nil end
-    Hum.PlatformStand = false
-    Root.Velocity = Vector3.new(0,0,0)
-    Hum:ChangeState(Enum.HumanoidStateType.Running)
-    --RagdollEvent:FireServer("__---r",Vector3.zero,CFrame.new(-4574,3,-443,0,0,1,0,1,0,-1,0,0),true)
-    for _,motor in ipairs(flyMotors) do motor:Destroy() end
-    for _,child in ipairs(Char:GetDescendants()) do 
-    if child:IsA("Motor6D") and child.Name ~= "FlyMotor" then child.Enabled = true end 
+    if flyConnection then 
+        flyConnection:Disconnect() 
+        flyConnection = nil 
+    end
+    
+    local Char = LocalPlayer.Character
+    if not Char then return end
+    
+    local Hum = Char:FindFirstChildOfClass("Humanoid")
+    local Root = Char:FindFirstChild("HumanoidRootPart")
+    local RagdollEvent = ReplicatedStorage:WaitForChild("Events"):WaitForChild("__RZDONL")
+    
+    if Hum then
+        Hum.PlatformStand = false
+        Hum:ChangeState(Enum.HumanoidStateType.Running)
+    end
+    
+    if Root then
+        Root.Velocity = Vector3.new(0,0,0)
+    end
+    
+    for _, part in ipairs(Char:GetDescendants()) do
+        local motor = part:FindFirstChild("FlyMotor")
+        if motor then
+            motor:Destroy()
+        end
+    end
+    
+    for _, child in ipairs(Char:GetDescendants()) do 
+        if child:IsA("Motor6D") and child.Name ~= "FlyMotor" then 
+            child.Enabled = true 
+        end 
+    end
+    
+    if RagdollEvent then
+        RagdollEvent:FireServer("__---r", Vector3.zero, CFrame.new(-4574,3,-443,0,0,1,0,1,0,-1,0,0), true)
+    end
 end
+
 
 local function enableJumpPower()
     if jumpPowerConnection then jumpPowerConnection:Disconnect() jumpPowerConnection = nil end
