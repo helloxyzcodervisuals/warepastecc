@@ -24,7 +24,7 @@ local LegitAimbotModule = {
     },
     Connection = nil
 }
---a
+--ab
 repeat task.wait() until game:IsLoaded()
 
 local function isAdonisAC(tab) 
@@ -1124,7 +1124,7 @@ LocalPlayer.CharacterAdded:Connect(function()
     end
 end)
 
-local Sec2 = Tab1:CreateSection("rendering", "right")
+local Sec2 = Tab1:CreateSection("rendering", "Right")
 
 Sec2:CreateToggle("Enable", false, function(v)
     CharacterRenderModule.Enabled = v
