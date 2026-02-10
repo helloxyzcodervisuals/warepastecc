@@ -2197,10 +2197,6 @@ QuickUIText.MouseButton1Click:Connect(function()
         disableFlying() 
     end
 end)
-
-local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/helloxyzcodervisuals/warepastecc/refs/heads/main/warepastecc.lua"))()
-local UI = Library:CreateWindow("Misc Menu", UDim2.new(0, 650, 0, 750))
-
 local MiscTab = UI:CreateTab("Misc")
 
 local MovementSection = MiscTab:CreateSection("Movement", "Left")
