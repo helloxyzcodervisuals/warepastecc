@@ -394,6 +394,7 @@ Sec2:CreateButton("Reset All Chams", function()
     end
     LegitAimbotModule.ItemsChams.OriginalData = {}
 end)
+--[[
 local SilentAimModule = {
     Enabled = false,
     Settings = {
@@ -612,6 +613,7 @@ local function InitializeSilentAim()
 end
 
 InitializeSilentAim()
+
 local Sec3 = Tab1:CreateSection("Silent Aim", "Left")
 
 Sec3:CreateToggle("Enable Silent Aim", false, function(v)
@@ -649,7 +651,7 @@ end)
 Sec3:CreateButton("Test Silent Aim", function()
     print("Silent Aim Test")
 end)
-    
+ --]]   
 local VisualModule = {
     ESP = {
         Enabled = false,
