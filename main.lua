@@ -115,7 +115,10 @@ local function InitializeLegitAimbot()
     end
     
     local function ApplyItemsChams()
-        for _, tool in ipairs(workspace:GetDescendants()) do
+    local localPlayer = game.Players.LocalPlayer
+    
+    if localPlayer:FindFirstChild("Backpack") then
+        for _, tool in ipairs(localPlayer.Backpack:GetChildren()) do
             if tool:IsA("Tool") then
                 for _, part in ipairs(tool:GetDescendants()) do
                     if part:IsA("BasePart") then
@@ -133,6 +136,28 @@ local function InitializeLegitAimbot()
             end
         end
     end
+    
+    local character = localPlayer.Character
+    if character then
+        for _, tool in ipairs(character:GetChildren()) do
+            if tool:IsA("Tool") then
+                for _, part in ipairs(tool:GetDescendants()) do
+                    if part:IsA("BasePart") then
+                        if not LegitAimbotModule.ItemsChams.OriginalData[part] then
+                            LegitAimbotModule.ItemsChams.OriginalData[part] = {
+                                Transparency = part.Transparency,
+                                Material = part.Material
+                            }
+                        end
+                        
+                        part.Transparency = LegitAimbotModule.ItemsChams.TransparencyValue
+                        part.Material = Enum.Material.ForceField
+                    end
+                end
+            end
+        end
+    end
+    
     
     local function RestoreItemsChams()
         for part, data in pairs(LegitAimbotModule.ItemsChams.OriginalData) do
