@@ -24,7 +24,6 @@ local LegitAimbotModule = {
     },
     Connection = nil
 }
---ab
 repeat task.wait() until game:IsLoaded()
 
 local function isAdonisAC(tab) 
@@ -1061,103 +1060,7 @@ end)
 Sec1:CreateColorpicker("Tracer Color", Color3.fromRGB(255, 255, 255), function(c)
     BulletTracersModule.Settings.Color = c
 end)
-local CharacterRenderModule = {
-    Enabled = false,
-    Color = Color3.fromRGB(170, 0, 255),
-    Transparency = 0.3
-}
 
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local LocalPlayer = Players.LocalPlayer
-
-local OriginalData = {}
-
-local function updateCharacterRender()
-    if CharacterRenderModule.Enabled then
-        local character = LocalPlayer.Character
-        if character then
-            for _, part in ipairs(character:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    if not OriginalData[part] then
-                        OriginalData[part] = {
-                            Color = part.Color,
-                            Transparency = part.Transparency,
-                            Material = part.Material
-                        }
-                    end
-                    
-                    part.Color = CharacterRenderModule.Color
-                    part.Transparency = CharacterRenderModule.Transparency
-                    part.Material = Enum.Material.ForceField
-                end
-            end
-        end
-    else
-        for part, data in pairs(OriginalData) do
-            if part and part.Parent then
-                part.Color = data.Color
-                part.Transparency = data.Transparency
-                part.Material = data.Material
-            end
-        end
-        OriginalData = {}
-    end
-end
-
-local renderConnection
-local function setupCharacterRender()
-    if renderConnection then
-        renderConnection:Disconnect()
-    end
-    
-    if CharacterRenderModule.Enabled then
-        renderConnection = RunService.RenderStepped:Connect(updateCharacterRender)
-    end
-end
-
-LocalPlayer.CharacterAdded:Connect(function()
-    OriginalData = {}
-    if CharacterRenderModule.Enabled then
-        task.wait(1)
-        updateCharacterRender()
-    end
-end)
-
-local Sec2 = Tab1:CreateSection("rendering", "Right")
-
-Sec2:CreateToggle("Enable", false, function(v)
-    CharacterRenderModule.Enabled = v
-    setupCharacterRender()
-end)
-
-Sec2:CreateColorpicker("Render Color", Color3.fromRGB(170, 0, 255), function(c)
-    CharacterRenderModule.Color = c
-    if CharacterRenderModule.Enabled then
-        local character = LocalPlayer.Character
-        if character then
-            for _, part in ipairs(character:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    part.Color = c
-                end
-            end
-        end
-    end
-end)
-
-Sec2:CreateSlider("Transparency", 0, 1, 0.3, "", function(v)
-    CharacterRenderModule.Transparency = v
-    if CharacterRenderModule.Enabled then
-        local character = LocalPlayer.Character
-        if character then
-            for _, part in ipairs(character:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    part.Transparency = v
-                end
-            end
-        end
-    end
-end)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
