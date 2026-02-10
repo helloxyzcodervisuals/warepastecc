@@ -29,6 +29,8 @@ for _,v in pairs(getgc(true)) do
         end 
     end 
 end
+local TargetList = {}
+local Whitelist = {}
 local LegitAimbotModule = {
     Enabled = false,
     Settings = {
@@ -1883,25 +1885,43 @@ local SoundList = {"Skeet", "Neverlose", "Fatality", "Bameware", "Bell", "Bubble
 VisualSection:CreateListbox("Hit Sound", SoundList, false, function(v) 
     ConfigTable.Ragebot.SelectedHitSound = v
 end)
-
 local ManagementSection = RagebotTab:CreateSection("Management", "Left")
 
-local TargetList = {}
-local Whitelist = {}
+local onlinePlayersList = {}
+local onlineListBox
+local onlineListBoxContainer
 
-local onlineOptions = {}
-for _, player in pairs(Players:GetPlayers()) do
-    if player ~= LocalPlayer then
-        table.insert(onlineOptions, player.Name)
+local function createOnlineListbox()
+    if onlineListBoxContainer then
+        onlineListBoxContainer:Remove()
     end
+    
+    onlinePlayersList = {}
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            table.insert(onlinePlayersList, player.Name)
+        end
+    end
+    
+    onlineListBoxContainer = ManagementSection:CreateListbox("Online Players", onlinePlayersList, true, function(selected) 
+        print("Selected player:", selected)
+        onlineListBoxContainer.currentSelected = selected
+    end)
+    
+    onlineListBox = onlineListBoxContainer
 end
 
-local onlineListBox = ManagementSection:CreateListbox("Online Players", onlineOptions, false, function(selected) 
-    print("Selected player:", selected)
-end)
+createOnlineListbox()
+
+local function getSelectedPlayer()
+    if onlineListBox and onlineListBox.currentSelected then
+        return onlineListBox.currentSelected
+    end
+    return nil
+end
 
 ManagementSection:CreateButton("Add to Target List", function()
-    local selected = onlineListBox.flags["Online Players"]
+    local selected = getSelectedPlayer()
     if selected and selected ~= "" then
         local found = false
         for _, name in ipairs(TargetList) do
@@ -1923,11 +1943,13 @@ ManagementSection:CreateButton("Add to Target List", function()
                 break
             end
         end
+    else
+        print("Please select a player first")
     end
 end)
 
 ManagementSection:CreateButton("Add to Whitelist", function()
-    local selected = onlineListBox.flags["Online Players"]
+    local selected = getSelectedPlayer()
     if selected and selected ~= "" then
         local found = false
         for _, name in ipairs(Whitelist) do
@@ -1949,6 +1971,8 @@ ManagementSection:CreateButton("Add to Whitelist", function()
                 break
             end
         end
+    else
+        print("Please select a player first")
     end
 end)
 
@@ -1962,15 +1986,28 @@ ManagementSection:CreateButton("Clear Whitelist", function()
     print("Cleared Whitelist")
 end)
 
+
 Players.PlayerAdded:Connect(function(player)
     if player ~= LocalPlayer then
-        onlineListBox:Add(player.Name)
+        table.insert(onlinePlayersList, player.Name)
+        if onlineListBox then
+            onlineListBox:Add(player.Name)
+        end
     end
 end)
 
 Players.PlayerRemoving:Connect(function(player)
     if player ~= LocalPlayer then
-        onlineListBox:Remove(player.Name)
+        for i, name in ipairs(onlinePlayersList) do
+            if name == player.Name then
+                table.remove(onlinePlayersList, i)
+                break
+            end
+        end
+        
+        if onlineListBox then
+            onlineListBox:Remove(player.Name)
+        end
         
         for i, name in ipairs(TargetList) do
             if name == player.Name then
@@ -1985,8 +2022,9 @@ Players.PlayerRemoving:Connect(function(player)
                 break
             end
         end
-    end
+    end 
 end)
+
 local Lighting = game:GetService("Lighting")
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
