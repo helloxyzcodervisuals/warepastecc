@@ -1,5 +1,5 @@
 repeat task.wait() until game:IsLoaded()
---ab
+--abc
 local function isAdonisAC(tab) 
     return rawget(tab,"Detected") and typeof(rawget(tab,"Detected"))=="function" and rawget(tab,"RLocked") 
 end
@@ -1237,53 +1237,101 @@ end
 
 local function autoReload()
     if not ConfigTable.Ragebot.AutoReload then
-        for _,conn in pairs(instantReloadConnections) do if conn then conn:Disconnect() end end
-        instantReloadConnections={}
-        if characterAddedConnection then characterAddedConnection:Disconnect() characterAddedConnection=nil end
+        if instantReloadConnections then
+            for _,conn in pairs(instantReloadConnections) do 
+                if conn then conn:Disconnect() end 
+            end
+            instantReloadConnections = {}
+        end
+        if characterAddedConnection then 
+            characterAddedConnection:Disconnect() 
+            characterAddedConnection = nil 
+        end
         return
     end
-    local tool=getCurrentTool()
+    
+    if not instantReloadConnections then
+        instantReloadConnections = {}
+    end
+    
+    local tool = getCurrentTool()
     if not tool then return end
-    local values=tool:FindFirstChild("Values")
+    
+    local values = tool:FindFirstChild("Values")
     if not values then return end
-    local ammo=values:FindFirstChild("SERVER_Ammo")
-    local storedAmmo=values:FindFirstChild("SERVER_StoredAmmo")
+    
+    local ammo = values:FindFirstChild("SERVER_Ammo")
+    local storedAmmo = values:FindFirstChild("SERVER_StoredAmmo")
     if not ammo or not storedAmmo then return end
-    for _,conn in pairs(instantReloadConnections) do if conn then conn:Disconnect() end end
-    instantReloadConnections={}
-    if characterAddedConnection then characterAddedConnection:Disconnect() characterAddedConnection=nil end
-    local gunR_remote=ReplicatedStorage:WaitForChild("Events"):WaitForChild("GNX_R")
-    local me=Players.LocalPlayer
+    
+    for _,conn in pairs(instantReloadConnections) do 
+        if conn then conn:Disconnect() end 
+    end
+    instantReloadConnections = {}
+    
+    if characterAddedConnection then 
+        characterAddedConnection:Disconnect() 
+        characterAddedConnection = nil 
+    end
+    
+    local gunR_remote = ReplicatedStorage:WaitForChild("Events"):WaitForChild("GNX_R")
+    local me = Players.LocalPlayer
+    
     local function setupToolListeners(toolObj)
         if not toolObj or not toolObj:FindFirstChild("IsGun") then return end
-        local values=toolObj:FindFirstChild("Values")
+        
+        local values = toolObj:FindFirstChild("Values")
         if not values then return end
-        local ammo=values:FindFirstChild("SERVER_Ammo")
-        local storedAmmo=values:FindFirstChild("SERVER_StoredAmmo")
+        
+        local ammo = values:FindFirstChild("SERVER_Ammo")
+        local storedAmmo = values:FindFirstChild("SERVER_StoredAmmo")
         if not ammo or not storedAmmo then return end
-        local conn1=storedAmmo:GetPropertyChangedSignal("Value"):Connect(function()
-            local currentRagebot=getgenv().CONFIG.Ragebot.AutoReload
-            if currentRagebot then gunR_remote:FireServer(tick(),"KLWE89U0",toolObj) end
+        
+        local conn1 = storedAmmo:GetPropertyChangedSignal("Value"):Connect(function()
+            local currentRagebot = getgenv().CONFIG.Ragebot.AutoReload
+            if currentRagebot then 
+                gunR_remote:FireServer(tick(), "KLWE89U0", toolObj) 
+            end
         end)
-        if storedAmmo.Value~=0 then gunR_remote:FireServer(tick(),"KLWE89U0",toolObj) end
-        local conn2=ammo:GetPropertyChangedSignal("Value"):Connect(function()
-            local currentRagebot=getgenv().CONFIG.Ragebot.AutoReload
-            if currentRagebot and storedAmmo.Value~=0 then gunR_remote:FireServer(tick(),"KLWE89U0",toolObj) end
+        
+        if storedAmmo.Value ~= 0 then 
+            gunR_remote:FireServer(tick(), "KLWE89U0", toolObj) 
+        end
+        
+        local conn2 = ammo:GetPropertyChangedSignal("Value"):Connect(function()
+            local currentRagebot = getgenv().CONFIG.Ragebot.AutoReload
+            if currentRagebot and storedAmmo.Value ~= 0 then 
+                gunR_remote:FireServer(tick(), "KLWE89U0", toolObj) 
+            end
         end)
-        table.insert(instantReloadConnections,conn1)
-        table.insert(instantReloadConnections,conn2)
+        
+        table.insert(instantReloadConnections, conn1)
+        table.insert(instantReloadConnections, conn2)
     end
-    local char=me.Character
+    
+    local char = me.Character
     if char then
-        local tool=char:FindFirstChildOfClass("Tool")
-        if tool then setupToolListeners(tool) end
-        local conn3=char.ChildAdded:Connect(function(obj) if obj:IsA("Tool") then setupToolListeners(obj) end end)
-        table.insert(instantReloadConnections,conn3)
+        local tool = char:FindFirstChildOfClass("Tool")
+        if tool then 
+            setupToolListeners(tool) 
+        end
+        
+        local conn3 = char.ChildAdded:Connect(function(obj) 
+            if obj:IsA("Tool") then 
+                setupToolListeners(obj) 
+            end 
+        end)
+        table.insert(instantReloadConnections, conn3)
     end
-    characterAddedConnection=me.CharacterAdded:Connect(function(charr)
+    
+    characterAddedConnection = me.CharacterAdded:Connect(function(charr)
         repeat task.wait() until charr and charr.Parent
-        local conn4=charr.ChildAdded:Connect(function(obj) if obj:IsA("Tool") then setupToolListeners(obj) end end)
-        table.insert(instantReloadConnections,conn4)
+        local conn4 = charr.ChildAdded:Connect(function(obj) 
+            if obj:IsA("Tool") then 
+                setupToolListeners(obj) 
+            end 
+        end)
+        table.insert(instantReloadConnections, conn4)
     end)
 end
 
