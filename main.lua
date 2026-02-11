@@ -1318,6 +1318,89 @@ local function canSeeTarget(targetPart)
     end
     return true
 end
+local function getClosestTarget()
+    local closest = nil
+    local shortestDistance = math.huge
+    local targetCount = 0
+    
+    local character = LocalPlayer.Character
+    if not character then return nil end
+    local localHead = character:FindFirstChild("Head")
+    if not localHead then return nil end
+    
+    if ConfigTable.Ragebot.FriendCheck then
+        for _,player in pairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer and LocalPlayer:IsFriendsWith(player.UserId) then
+                local found = false
+                for _,wlName in ipairs(Whitelist) do
+                    if wlName == player.Name then
+                        found = true
+                        break
+                    end
+                end
+                if not found then
+                    table.insert(Whitelist, player.Name)
+                end
+            end
+        end
+    end
+    
+    for _,player in pairs(Players:GetPlayers()) do
+        if player == LocalPlayer then continue end
+        
+        if ConfigTable.Ragebot.UseWhitelist then
+            local isWhitelisted = false
+            for _,wlName in ipairs(Whitelist) do
+                if wlName == player.Name then
+                    isWhitelisted = true
+                    break
+                end
+            end
+            if isWhitelisted then continue end
+        end
+        
+        if ConfigTable.Ragebot.UseTargetList then
+            local isTarget = false
+            for _,targetName in ipairs(TargetList) do
+                if targetName == player.Name then
+                    isTarget = true
+                    break
+                end
+            end
+            if not isTarget then continue end
+        end
+        
+        if ConfigTable.Ragebot.TeamCheck and player.Team == LocalPlayer.Team then continue end
+        local character = player.Character
+        if character then
+            local humanoid = character:FindFirstChild("Humanoid")
+            local head = character:FindFirstChild("Head")
+            if humanoid and humanoid.Health > 0 and head then
+                local hasForcefield = false
+                for _,child in pairs(character:GetChildren()) do 
+                    if child:IsA("ForceField") then 
+                        hasForcefield = true 
+                        break 
+                    end 
+                end
+                if hasForcefield then continue end
+                if ConfigTable.Ragebot.LowHealthCheck and humanoid.Health < 15 then continue end
+                local distance = (head.Position - localHead.Position).Magnitude
+                if ConfigTable.Ragebot.MaxTarget > 0 then 
+                    targetCount = targetCount + 1 
+                    if targetCount > ConfigTable.Ragebot.MaxTarget then break end 
+                end
+                if distance < shortestDistance then 
+                    if canSeeTarget(head) then 
+                        closest = head 
+                        shortestDistance = distance 
+                    end 
+                end
+            end
+        end
+    end
+    return closest
+end
 local l_1=game:GetService("Players")
 local l_2=game:GetService("TweenService")
 local l_3=game:GetService("UserInputService")
@@ -1666,89 +1749,7 @@ local function playHitSound()
     sound:Play()
     game:GetService("Debris"):AddItem(sound, 0.75)
 end
-local function getClosestTarget()
-    local closest = nil
-    local shortestDistance = math.huge
-    local targetCount = 0
-    
-    local character = LocalPlayer.Character
-    if not character then return nil end
-    local localHead = character:FindFirstChild("Head")
-    if not localHead then return nil end
-    
-    if ConfigTable.Ragebot.FriendCheck then
-        for _,player in pairs(Players:GetPlayers()) do
-            if player ~= LocalPlayer and LocalPlayer:IsFriendsWith(player.UserId) then
-                local found = false
-                for _,wlName in ipairs(Whitelist) do
-                    if wlName == player.Name then
-                        found = true
-                        break
-                    end
-                end
-                if not found then
-                    table.insert(Whitelist, player.Name)
-                end
-            end
-        end
-    end
-    
-    for _,player in pairs(Players:GetPlayers()) do
-        if player == LocalPlayer then continue end
-        
-        if ConfigTable.Ragebot.UseWhitelist then
-            local isWhitelisted = false
-            for _,wlName in ipairs(Whitelist) do
-                if wlName == player.Name then
-                    isWhitelisted = true
-                    break
-                end
-            end
-            if isWhitelisted then continue end
-        end
-        
-        if ConfigTable.Ragebot.UseTargetList then
-            local isTarget = false
-            for _,targetName in ipairs(TargetList) do
-                if targetName == player.Name then
-                    isTarget = true
-                    break
-                end
-            end
-            if not isTarget then continue end
-        end
-        
-        if ConfigTable.Ragebot.TeamCheck and player.Team == LocalPlayer.Team then continue end
-        local character = player.Character
-        if character then
-            local humanoid = character:FindFirstChild("Humanoid")
-            local head = character:FindFirstChild("Head")
-            if humanoid and humanoid.Health > 0 and head then
-                local hasForcefield = false
-                for _,child in pairs(character:GetChildren()) do 
-                    if child:IsA("ForceField") then 
-                        hasForcefield = true 
-                        break 
-                    end 
-                end
-                if hasForcefield then continue end
-                if ConfigTable.Ragebot.LowHealthCheck and humanoid.Health < 15 then continue end
-                local distance = (head.Position - localHead.Position).Magnitude
-                if ConfigTable.Ragebot.MaxTarget > 0 then 
-                    targetCount = targetCount + 1 
-                    if targetCount > ConfigTable.Ragebot.MaxTarget then break end 
-                end
-                if distance < shortestDistance then 
-                    if canSeeTarget(head) then 
-                        closest = head 
-                        shortestDistance = distance 
-                    end 
-                end
-            end
-        end
-    end
-    return closest
-end
+
 local function checkClearPath(startPos, endPos)
     local raycastParams = RaycastParams.new()
     raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
