@@ -7,7 +7,7 @@ local Library = {
         Main = Color3.fromRGB(20, 20, 23),
         OuterOutline = Color3.fromRGB(65, 65, 70),
         InnerOutline = Color3.fromRGB(45, 45, 50),
-        Accent = Color3.fromRGB(255, 255, 255),
+        Accent = Color3.fromRGB(255, 100, 150),
         Text = Color3.fromRGB(220, 220, 220),
         SectionInlay = Color3.fromRGB(15, 15, 18)
     }
