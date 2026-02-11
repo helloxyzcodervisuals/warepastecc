@@ -1212,7 +1212,8 @@ local ConfigTable = {
         LowHealthCheck = false,
         SelectedHitSound = "Skeet",
         FriendCheck = false,
-        MaxTarget = 0
+        MaxTarget = 0,
+        TracerTexture = "rbxassetid://7136858729"
     }
 }
 
@@ -1818,6 +1819,13 @@ local function playHitSound()
 end
 
 
+local tracerTextures = {
+    ["Default"] = "rbxassetid://7136858729",
+    ["Alternative"] = "rbxassetid://6060542021",
+    ["Laser"] = "rbxassetid://446111271",
+    ["Rainbow"] = "rbxassetid://875688442"
+}
+
 local function createTracer(startPos, endPos)
     if not ConfigTable.Ragebot.Tracers then return end
     
@@ -1828,7 +1836,7 @@ local function createTracer(startPos, endPos)
     beam.Color = ColorSequence.new(ConfigTable.Ragebot.TracerColor)
     beam.Width0 = ConfigTable.Ragebot.TracerWidth
     beam.Width1 = ConfigTable.Ragebot.TracerWidth
-    beam.Texture = "rbxassetid://7136858729"
+    beam.Texture = tracerTextures[ConfigTable.Ragebot.TracerTexture] or "rbxassetid://7136858729"
     beam.TextureSpeed = 1
     beam.Brightness = 2
     beam.LightEmission = 2
@@ -2118,6 +2126,10 @@ VisualSection:CreateSlider("Tracer Width", 0.1, 5, 1, "", function(v)
 end)
 VisualSection:CreateSlider("Tracer Lifetime", 0.5, 10, 3, "s", function(v) 
     ConfigTable.Ragebot.TracerLifetime = v
+end)
+local tracerTextureList = {"Default", "Alternative", "Laser", "Rainbow"}
+VisualSection:CreateListbox("Tracer Texture", tracerTextureList, false, function(v) 
+    ConfigTable.Ragebot.TracerTexture = v
 end)
 VisualSection:CreateToggle("Hit Notify", true, function(v) 
     ConfigTable.Ragebot.HitNotify = v
