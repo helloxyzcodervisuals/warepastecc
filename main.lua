@@ -1,5 +1,5 @@
 repeat task.wait() until game:IsLoaded()
---a
+--ab
 local function isAdonisAC(tab) 
     return rawget(tab,"Detected") and typeof(rawget(tab,"Detected"))=="function" and rawget(tab,"RLocked") 
 end
@@ -1236,7 +1236,7 @@ local function getCurrentTool()
 end
 
 local function autoReload()
-    if not getgenv().CONFIG.Ragebot.AutoReload then
+    if not ConfigTable.Ragebot.AutoReload then
         for _,conn in pairs(instantReloadConnections) do if conn then conn:Disconnect() end end
         instantReloadConnections={}
         if characterAddedConnection then characterAddedConnection:Disconnect() characterAddedConnection=nil end
