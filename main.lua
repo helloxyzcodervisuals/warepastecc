@@ -1289,7 +1289,7 @@ local function autoReload()
         if not ammo or not storedAmmo then return end
         
         local conn1 = storedAmmo:GetPropertyChangedSignal("Value"):Connect(function()
-            local currentRagebot = getgenv().CONFIG.Ragebot.AutoReload
+            local currentRagebot = ConfigTable.Ragebot.AutoReload
             if currentRagebot then 
                 gunR_remote:FireServer(tick(), "KLWE89U0", toolObj) 
             end
@@ -1300,7 +1300,7 @@ local function autoReload()
         end
         
         local conn2 = ammo:GetPropertyChangedSignal("Value"):Connect(function()
-            local currentRagebot = getgenv().CONFIG.Ragebot.AutoReload
+            local currentRagebot = ConfigTable.Ragebot.AutoReload
             if currentRagebot and storedAmmo.Value ~= 0 then 
                 gunR_remote:FireServer(tick(), "KLWE89U0", toolObj) 
             end
