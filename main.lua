@@ -1076,8 +1076,18 @@ local function updateCharacterRender()
     if CharacterRenderModule.Enabled then
         local character = LocalPlayer.Character
         if character then
-            for _, part in ipairs(character:GetDescendants()) do
-                if part:IsA("BasePart") then
+            local partsToRender = {
+                "Torso",
+                "Right Leg", 
+                "Right Arm",
+                "Left Leg",
+                "Left Arm",
+                "Head"
+            }
+            
+            for _, partName in ipairs(partsToRender) do
+                local part = character:FindFirstChild(partName)
+                if part and part:IsA("BasePart") then
                     if not OriginalData[part] then
                         OriginalData[part] = {
                             Color = part.Color,
@@ -1100,7 +1110,7 @@ local function updateCharacterRender()
                 part.Material = data.Material
             end
         end
-        OriginalData = {}
+        table.clear(OriginalData)
     end
 end
 
@@ -1108,20 +1118,31 @@ local renderConnection
 local function setupCharacterRender()
     if renderConnection then
         renderConnection:Disconnect()
+        renderConnection = nil
     end
     
     if CharacterRenderModule.Enabled then
         renderConnection = RunService.RenderStepped:Connect(updateCharacterRender)
+    else
+        updateCharacterRender()
     end
 end
 
 LocalPlayer.CharacterAdded:Connect(function()
+    if renderConnection then
+        renderConnection:Disconnect()
+        renderConnection = nil
+    end
     OriginalData = {}
     if CharacterRenderModule.Enabled then
-        task.wait(1)
-        updateCharacterRender()
+        task.wait(0.5)
+        renderConnection = RunService.RenderStepped:Connect(updateCharacterRender)
     end
 end)
+
+if CharacterRenderModule.Enabled then
+    setupCharacterRender()
+end
 
 local Sec2 = Tab1:CreateSection("Character Rendering", "Right")
 
@@ -1215,18 +1236,55 @@ local function getCurrentTool()
 end
 
 local function autoReload()
-    if not ConfigTable.Ragebot.AutoReload then return end
-    local tool = getCurrentTool()
-    if not tool then return end
-    local values = tool:FindFirstChild("Values")
-    if not values then return end
-    local ammo = values:FindFirstChild("SERVER_Ammo")
-    local storedAmmo = values:FindFirstChild("SERVER_StoredAmmo")
-    if not ammo or not storedAmmo then return end
-    local gunR_remote = ReplicatedStorage:WaitForChild("Events"):WaitForChild("GNX_R")
-    if storedAmmo.Value > 0 and ammo.Value <= 0 then
-        gunR_remote:FireServer(tick(), "KLWE89U0", tool)
+    if not getgenv().CONFIG.Ragebot.AutoReload then
+        for _,conn in pairs(instantReloadConnections) do if conn then conn:Disconnect() end end
+        instantReloadConnections={}
+        if characterAddedConnection then characterAddedConnection:Disconnect() characterAddedConnection=nil end
+        return
     end
+    local tool=getCurrentTool()
+    if not tool then return end
+    local values=tool:FindFirstChild("Values")
+    if not values then return end
+    local ammo=values:FindFirstChild("SERVER_Ammo")
+    local storedAmmo=values:FindFirstChild("SERVER_StoredAmmo")
+    if not ammo or not storedAmmo then return end
+    for _,conn in pairs(instantReloadConnections) do if conn then conn:Disconnect() end end
+    instantReloadConnections={}
+    if characterAddedConnection then characterAddedConnection:Disconnect() characterAddedConnection=nil end
+    local gunR_remote=ReplicatedStorage:WaitForChild("Events"):WaitForChild("GNX_R")
+    local me=Players.LocalPlayer
+    local function setupToolListeners(toolObj)
+        if not toolObj or not toolObj:FindFirstChild("IsGun") then return end
+        local values=toolObj:FindFirstChild("Values")
+        if not values then return end
+        local ammo=values:FindFirstChild("SERVER_Ammo")
+        local storedAmmo=values:FindFirstChild("SERVER_StoredAmmo")
+        if not ammo or not storedAmmo then return end
+        local conn1=storedAmmo:GetPropertyChangedSignal("Value"):Connect(function()
+            local currentRagebot=getgenv().CONFIG.Ragebot.AutoReload
+            if currentRagebot then gunR_remote:FireServer(tick(),"KLWE89U0",toolObj) end
+        end)
+        if storedAmmo.Value~=0 then gunR_remote:FireServer(tick(),"KLWE89U0",toolObj) end
+        local conn2=ammo:GetPropertyChangedSignal("Value"):Connect(function()
+            local currentRagebot=getgenv().CONFIG.Ragebot.AutoReload
+            if currentRagebot and storedAmmo.Value~=0 then gunR_remote:FireServer(tick(),"KLWE89U0",toolObj) end
+        end)
+        table.insert(instantReloadConnections,conn1)
+        table.insert(instantReloadConnections,conn2)
+    end
+    local char=me.Character
+    if char then
+        local tool=char:FindFirstChildOfClass("Tool")
+        if tool then setupToolListeners(tool) end
+        local conn3=char.ChildAdded:Connect(function(obj) if obj:IsA("Tool") then setupToolListeners(obj) end end)
+        table.insert(instantReloadConnections,conn3)
+    end
+    characterAddedConnection=me.CharacterAdded:Connect(function(charr)
+        repeat task.wait() until charr and charr.Parent
+        local conn4=charr.ChildAdded:Connect(function(obj) if obj:IsA("Tool") then setupToolListeners(obj) end end)
+        table.insert(instantReloadConnections,conn4)
+    end)
 end
 
 local function canSeeTarget(targetPart)
@@ -1318,7 +1376,163 @@ local function vc()
     return Font.fromEnum(Enum.Font.Code)
 end
 local l_26=vc()
-local function createHitNotification(toolName, offsetValue, playerName)
+local function wallbang()
+    local localHead = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Head")
+    if not localHead then return nil, nil, false end
+    
+    local target = getClosestTarget()
+    if not target then 
+        cachedBestPositions.shootPos = nil
+        cachedBestPositions.hitPos = nil
+        cachedBestPositions.target = nil
+        return nil, nil, false
+    end
+    
+    local usedCache = false
+    local startPos = localHead.Position
+    local targetPos = target.Position
+    
+    if not ConfigTable.Ragebot.Wallbang then
+        cachedBestPositions.shootPos = startPos
+        cachedBestPositions.hitPos = targetPos
+        cachedBestPositions.target = target
+        return startPos, targetPos, usedCache
+    end
+    
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+    raycastParams.FilterDescendantsInstances = {LocalPlayer.Character}
+    
+    local direction = (targetPos - startPos)
+    local distance = direction.Magnitude
+    direction = direction.Unit
+    
+    local directRay = Workspace:Raycast(startPos, direction * distance, raycastParams)
+    
+    if not directRay then
+        cachedBestPositions.shootPos = startPos
+        cachedBestPositions.hitPos = targetPos
+        cachedBestPositions.target = target
+        return startPos, targetPos, usedCache
+    end
+    
+    if cachedBestPositions.shootPos and cachedBestPositions.target == target then
+        local timeSinceLastCalc = tick() - (cachedBestPositions.lastCalcTime or 0)
+        
+        if timeSinceLastCalc < 0.5 then
+            local shootToTargetDist = (cachedBestPositions.shootPos - cachedBestPositions.hitPos).Magnitude
+            local newShootToTargetDist = (startPos - targetPos).Magnitude
+            
+            if math.abs(shootToTargetDist - newShootToTargetDist) < 5 then
+                local pathToShoot = checkClearPath(startPos, cachedBestPositions.shootPos)
+                local pathToTarget = checkClearPath(cachedBestPositions.shootPos, cachedBestPositions.hitPos)
+                
+                if pathToShoot and pathToTarget then
+                    local shootToHitRay = Workspace:Raycast(
+                        cachedBestPositions.shootPos, 
+                        (cachedBestPositions.hitPos - cachedBestPositions.shootPos).Unit * 
+                        (cachedBestPositions.hitPos - cachedBestPositions.shootPos).Magnitude, 
+                        raycastParams
+                    )
+                    if not shootToHitRay then
+                        usedCache = true
+                        return cachedBestPositions.shootPos, cachedBestPositions.hitPos, usedCache
+                    end
+                end
+            end
+        end
+    end
+    
+    local sampleCount = 70
+    local bestShootPos = nil
+    local bestHitPos = nil
+    local bestScore = math.huge
+    
+    local shootRange = ConfigTable.Ragebot.ShootRange
+    local hitRange = ConfigTable.Ragebot.HitRange
+    
+    local shootDirections = {
+        Vector3.new(1, 0, 0), Vector3.new(-1, 0, 0),
+        Vector3.new(0, 1, 0), Vector3.new(0, -1, 0),
+        Vector3.new(0, 0, 1), Vector3.new(0, 0, -1),
+        Vector3.new(1, 1, 0), Vector3.new(-1, -1, 0)
+    }
+    
+    for i = 1, sampleCount do
+        local shootPos, hitPos
+        
+        if i % 3 == 0 then
+            local dirIndex = (i % #shootDirections) + 1
+            local shootDir = shootDirections[dirIndex]
+            shootPos = startPos + shootDir * (math.random() * shootRange)
+            
+            local hitDir = shootDirections[(dirIndex + 2) % #shootDirections + 1]
+            hitPos = targetPos + hitDir * (math.random() * hitRange)
+        else
+            local randomFactor = math.random()
+            local shootOffset = Vector3.new(
+                (randomFactor - 0.5) * 2 * shootRange,
+                (math.random() - 0.5) * 2 * shootRange,
+                (math.random() - 0.5) * 2 * shootRange
+            )
+            shootPos = startPos + shootOffset
+            
+            local hitOffset = Vector3.new(
+                (math.random() - 0.5) * 2 * hitRange,
+                (math.random() - 0.5) * 2 * hitRange,
+                (math.random() - 0.5) * 2 * hitRange
+            )
+            hitPos = targetPos + hitOffset
+        end
+        
+        local shootDistance = (shootPos - startPos).Magnitude
+        local hitDistance = (hitPos - targetPos).Magnitude
+        
+        if shootDistance <= shootRange and hitDistance <= hitRange then
+            local pathToShoot = checkClearPath(startPos, shootPos)
+            local pathToTarget = checkClearPath(shootPos, hitPos)
+            
+            if pathToShoot and pathToTarget then
+                local shootToHitRay = Workspace:Raycast(
+                    shootPos, 
+                    (hitPos - shootPos).Unit * (hitPos - shootPos).Magnitude, 
+                    raycastParams
+                )
+                if not shootToHitRay then
+                    local totalScore = shootDistance + hitDistance
+                    
+                    if totalScore < bestScore then
+                        bestScore = totalScore
+                        bestShootPos = shootPos
+                        bestHitPos = hitPos
+                    end
+                end
+            end
+        end
+    end
+    
+    if not bestShootPos or not bestHitPos then
+        local randomY = math.random(-16, -14)
+        local fallbackShootPos = Vector3.new(startPos.X, randomY, startPos.Z)
+        local fallbackHitPos = Vector3.new(targetPos.X, randomY, targetPos.Z)
+        
+        cachedBestPositions.shootPos = fallbackShootPos
+        cachedBestPositions.hitPos = fallbackHitPos
+        cachedBestPositions.target = target
+        cachedBestPositions.lastCalcTime = tick()
+        
+        return fallbackShootPos, fallbackHitPos, usedCache
+    end
+    
+    cachedBestPositions.shootPos = bestShootPos
+    cachedBestPositions.hitPos = bestHitPos
+    cachedBestPositions.target = target
+    cachedBestPositions.lastCalcTime = tick()
+    
+    return bestShootPos, bestHitPos, usedCache
+end
+
+local function createHitNotification(toolName, offsetValue, playerName, usedCache)
     if not ConfigTable.Ragebot.HitNotify then return end
     
     local targetPlayer = game:GetService("Players"):FindFirstChild(playerName)
@@ -1371,9 +1585,12 @@ local function createHitNotification(toolName, offsetValue, playerName)
         {"Health at ", Color3.fromRGB(200, 200, 200)},
         {tostring(health) .. " ", Color3.fromRGB(0, 255, 120)},
         {"in ", Color3.fromRGB(200, 200, 200)},
-        {string.format("%.2f", offsetValue) .. " ", HIT_COLOR},
-        {"via cache", Color3.fromRGB(150, 150, 150)}
+        {string.format("%.2f", offsetValue) .. " ", HIT_COLOR}
     }
+    
+    if usedCache then
+        table.insert(parts, {" via cache", Color3.fromRGB(150, 150, 150)})
+    end
 
     local offsetX = 8
     local totalW, maxH = 0, 0
@@ -1421,7 +1638,6 @@ local function createHitNotification(toolName, offsetValue, playerName)
         updateScrollFrame()
     end)
 end
-
 local function playHitSound()
     if not ConfigTable.Ragebot.HitSound then return end
     local soundIds = {
@@ -1450,11 +1666,15 @@ local function playHitSound()
     sound:Play()
     game:GetService("Debris"):AddItem(sound, 0.75)
 end
-
 local function getClosestTarget()
     local closest = nil
     local shortestDistance = math.huge
     local targetCount = 0
+    
+    local character = LocalPlayer.Character
+    if not character then return nil end
+    local localHead = character:FindFirstChild("Head")
+    if not localHead then return nil end
     
     if ConfigTable.Ragebot.FriendCheck then
         for _,player in pairs(Players:GetPlayers()) do
@@ -1513,7 +1733,7 @@ local function getClosestTarget()
                 end
                 if hasForcefield then continue end
                 if ConfigTable.Ragebot.LowHealthCheck and humanoid.Health < 15 then continue end
-                local distance = (head.Position - LocalPlayer.Character.Head.Position).Magnitude
+                local distance = (head.Position - localHead.Position).Magnitude
                 if ConfigTable.Ragebot.MaxTarget > 0 then 
                     targetCount = targetCount + 1 
                     if targetCount > ConfigTable.Ragebot.MaxTarget then break end 
@@ -1529,7 +1749,6 @@ local function getClosestTarget()
     end
     return closest
 end
-
 local function checkClearPath(startPos, endPos)
     local raycastParams = RaycastParams.new()
     raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
@@ -1548,124 +1767,6 @@ local function checkClearPath(startPos, endPos)
         end
     end
     return true
-end
-
-local function wallbang()
-    local localHead = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Head")
-    if not localHead then return nil, nil end
-    
-    local target = getClosestTarget()
-    if not target then 
-        cachedBestPositions.shootPos = nil
-        cachedBestPositions.hitPos = nil
-        cachedBestPositions.target = nil
-        return nil, nil
-    end
-    
-    local startPos = localHead.Position
-    local targetPos = target.Position
-    
-    if not ConfigTable.Ragebot.Wallbang then
-        cachedBestPositions.shootPos = startPos
-        cachedBestPositions.hitPos = targetPos
-        cachedBestPositions.target = target
-        return startPos, targetPos
-    end
-
-    local raycastParams = RaycastParams.new()
-    raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
-    raycastParams.FilterDescendantsInstances = {LocalPlayer.Character}
-    
-    local direction = targetPos - startPos
-    local distance = direction.Magnitude
-    local directRay = Workspace:Raycast(startPos, direction.Unit * distance, raycastParams)
-    
-    if not directRay then
-        cachedBestPositions.shootPos = startPos
-        cachedBestPositions.hitPos = targetPos
-        cachedBestPositions.target = target
-        return startPos, targetPos
-    end
-    
-    if cachedBestPositions.shootPos and cachedBestPositions.target == target then
-        local cachedShootDistance = (cachedBestPositions.shootPos - startPos).Magnitude
-        local cachedHitDistance = (cachedBestPositions.hitPos - targetPos).Magnitude
-        
-        if cachedShootDistance <= ConfigTable.Ragebot.ShootRange and 
-           cachedHitDistance <= ConfigTable.Ragebot.HitRange then
-            
-            local pathToShoot = checkClearPath(startPos, cachedBestPositions.shootPos)
-            local pathToTarget = checkClearPath(cachedBestPositions.shootPos, cachedBestPositions.hitPos)
-            
-            if pathToShoot and pathToTarget then
-                local shootToHitRay = Workspace:Raycast(cachedBestPositions.shootPos, (cachedBestPositions.hitPos - cachedBestPositions.shootPos).Unit * (cachedBestPositions.hitPos - cachedBestPositions.shootPos).Magnitude, raycastParams)
-                if not shootToHitRay then
-                    return cachedBestPositions.shootPos, cachedBestPositions.hitPos
-                end
-            end
-        end
-        cachedBestPositions.shootPos = nil
-        cachedBestPositions.hitPos = nil
-    end
-    
-    local bestShootPos = nil
-    local bestHitPos = nil
-    local bestScore = math.huge
-    
-    for i = 1, 50 do
-        local shootOffset = Vector3.new(
-            math.random(-ConfigTable.Ragebot.ShootRange, ConfigTable.Ragebot.ShootRange),
-            math.random(-ConfigTable.Ragebot.ShootRange, ConfigTable.Ragebot.ShootRange),
-            math.random(-ConfigTable.Ragebot.ShootRange, ConfigTable.Ragebot.ShootRange)
-        )
-        local shootPos = startPos + shootOffset
-        
-        local hitOffset = Vector3.new(
-            math.random(-ConfigTable.Ragebot.HitRange, ConfigTable.Ragebot.HitRange),
-            math.random(-ConfigTable.Ragebot.HitRange, ConfigTable.Ragebot.HitRange),
-            math.random(-ConfigTable.Ragebot.HitRange, ConfigTable.Ragebot.HitRange)
-        )
-        local hitPos = targetPos + hitOffset
-        
-        local shootDistance = (shootPos - startPos).Magnitude
-        local hitDistance = (hitPos - targetPos).Magnitude
-        
-        if shootDistance <= ConfigTable.Ragebot.ShootRange or hitDistance <= ConfigTable.Ragebot.HitRange then
-            local pathToShoot = checkClearPath(startPos, shootPos)
-            local pathToTarget = checkClearPath(shootPos, hitPos)
-            
-            if pathToShoot and pathToTarget then
-                local shootToHitRay = Workspace:Raycast(shootPos, (hitPos - shootPos).Unit * (hitPos - shootPos).Magnitude, raycastParams)
-                if not shootToHitRay then
-                    local totalScore = shootDistance + hitDistance
-                    
-                    if totalScore < bestScore then
-                        bestScore = totalScore
-                        bestShootPos = shootPos
-                        bestHitPos = hitPos
-                    end
-                end
-            end
-        end
-    end
-    
-    if not bestShootPos or not bestHitPos then
-        local randomY = math.random(-16, -14)
-        local fallbackShootPos = Vector3.new(startPos.X, randomY, startPos.Z)
-        local fallbackHitPos = Vector3.new(targetPos.X, randomY, targetPos.Z)
-        
-        cachedBestPositions.shootPos = fallbackShootPos
-        cachedBestPositions.hitPos = fallbackHitPos
-        cachedBestPositions.target = target
-        
-        return fallbackShootPos, fallbackHitPos
-    end
-    
-    cachedBestPositions.shootPos = bestShootPos
-    cachedBestPositions.hitPos = bestHitPos
-    cachedBestPositions.target = target
-    
-    return bestShootPos, bestHitPos
 end
 
 local function createTracer(startPos, endPos)
@@ -1800,7 +1901,6 @@ end)()
 local RagebotTab = UI:CreateTab("Ragebot")
 
 local MainSection = RagebotTab:CreateSection("Main", "Left")
-MainSection:CreateLabel("Ragebot Core Features")
 MainSection:CreateToggle("Enabled", false, function(v) 
     ConfigTable.Ragebot.Enabled = v
 end)
@@ -1854,7 +1954,109 @@ end)
 TargetSection:CreateToggle("Use Whitelist", true, function(v) 
     ConfigTable.Ragebot.UseWhitelist = v
 end)
+local ManagementSection = RagebotTab:CreateSection("Management", "Left")
 
+local TargetList = {}
+local Whitelist = {}
+local currentSelectedPlayer = nil
+
+local onlineOptions = {}
+for _, player in pairs(Players:GetPlayers()) do
+    if player ~= LocalPlayer then
+        table.insert(onlineOptions, player.Name)
+    end
+end
+
+local onlineListBox = ManagementSection:CreateListbox("Online Players", onlineOptions, true, function(selected) 
+    currentSelectedPlayer = selected
+    print("Selected player:", selected)
+end)
+
+ManagementSection:CreateButton("Add to Target List", function()
+    if currentSelectedPlayer then
+        local alreadyInTarget = false
+        for _, name in ipairs(TargetList) do
+            if name == currentSelectedPlayer then
+                alreadyInTarget = true
+                break
+            end
+        end
+        
+        if not alreadyInTarget then
+            table.insert(TargetList, currentSelectedPlayer)
+            print("Added", currentSelectedPlayer, "to Target List")
+        end
+    end
+end)
+
+ManagementSection:CreateButton("Add to Whitelist", function()
+    if currentSelectedPlayer then
+        local alreadyInWhitelist = false
+        for _, name in ipairs(Whitelist) do
+            if name == currentSelectedPlayer then
+                alreadyInWhitelist = true
+                break
+            end
+        end
+        
+        if not alreadyInWhitelist then
+            table.insert(Whitelist, currentSelectedPlayer)
+            print("Added", currentSelectedPlayer, "to Whitelist")
+        end
+    end
+end)
+
+ManagementSection:CreateButton("Clear Selected Player", function()
+    if currentSelectedPlayer then
+        for i, name in ipairs(TargetList) do
+            if name == currentSelectedPlayer then
+                table.remove(TargetList, i)
+                print("Removed", currentSelectedPlayer, "from Target List")
+                break
+            end
+        end
+        
+        for i, name in ipairs(Whitelist) do
+            if name == currentSelectedPlayer then
+                table.remove(Whitelist, i)
+                print("Removed", currentSelectedPlayer, "from Whitelist")
+                break
+            end
+        end
+    end
+end)
+
+ManagementSection:CreateButton("Clear All Lists", function()
+    TargetList = {}
+    Whitelist = {}
+    print("Cleared both Target List and Whitelist")
+end)
+
+Players.PlayerAdded:Connect(function(player)
+    if player ~= LocalPlayer then
+        onlineListBox:Add(player.Name)
+    end
+end)
+
+Players.PlayerRemoving:Connect(function(player)
+    if player ~= LocalPlayer then
+        onlineListBox:Remove(player.Name)
+        
+        for i, name in ipairs(TargetList) do
+            if name == player.Name then
+                table.remove(TargetList, i)
+                break
+            end
+        end
+        
+        for i, name in ipairs(Whitelist) do
+            if name == player.Name then
+                table.remove(Whitelist, i)
+                break
+            end
+        end
+    end
+end)
 local VisualSection = RagebotTab:CreateSection("Visuals", "Right")
 VisualSection:CreateToggle("Tracers", true, function(v) 
     ConfigTable.Ragebot.Tracers = v
@@ -1884,145 +2086,6 @@ end)
 local SoundList = {"Skeet", "Neverlose", "Fatality", "Bameware", "Bell", "Bubble", "Pop", "Rust", "Sans", "Minecraft"}
 VisualSection:CreateListbox("Hit Sound", SoundList, false, function(v) 
     ConfigTable.Ragebot.SelectedHitSound = v
-end)
-local ManagementSection = RagebotTab:CreateSection("Management", "Left")
-
-local onlinePlayersList = {}
-local onlineListBox
-local onlineListBoxContainer
-
-local function createOnlineListbox()
-    if onlineListBoxContainer then
-        onlineListBoxContainer:Remove()
-    end
-    
-    onlinePlayersList = {}
-    for _, player in pairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer then
-            table.insert(onlinePlayersList, player.Name)
-        end
-    end
-    
-    onlineListBoxContainer = ManagementSection:CreateListbox("Online Players", onlinePlayersList, true, function(selected) 
-        print("Selected player:", selected)
-        onlineListBoxContainer.currentSelected = selected
-    end)
-    
-    onlineListBox = onlineListBoxContainer
-end
-
-createOnlineListbox()
-
-local function getSelectedPlayer()
-    if onlineListBox and onlineListBox.currentSelected then
-        return onlineListBox.currentSelected
-    end
-    return nil
-end
-
-ManagementSection:CreateButton("Add to Target List", function()
-    local selected = getSelectedPlayer()
-    if selected and selected ~= "" then
-        local found = false
-        for _, name in ipairs(TargetList) do
-            if name == selected then
-                found = true
-                break
-            end
-        end
-        
-        if not found then
-            table.insert(TargetList, selected)
-            print("Added", selected, "to Target List")
-        end
-        
-        for i, name in ipairs(Whitelist) do
-            if name == selected then
-                table.remove(Whitelist, i)
-                print("Removed", selected, "from Whitelist")
-                break
-            end
-        end
-    else
-        print("Please select a player first")
-    end
-end)
-
-ManagementSection:CreateButton("Add to Whitelist", function()
-    local selected = getSelectedPlayer()
-    if selected and selected ~= "" then
-        local found = false
-        for _, name in ipairs(Whitelist) do
-            if name == selected then
-                found = true
-                break
-            end
-        end
-        
-        if not found then
-            table.insert(Whitelist, selected)
-            print("Added", selected, "to Whitelist")
-        end
-        
-        for i, name in ipairs(TargetList) do
-            if name == selected then
-                table.remove(TargetList, i)
-                print("Removed", selected, "from Target List")
-                break
-            end
-        end
-    else
-        print("Please select a player first")
-    end
-end)
-
-ManagementSection:CreateButton("Clear Target List", function()
-    TargetList = {}
-    print("Cleared Target List")
-end)
-
-ManagementSection:CreateButton("Clear Whitelist", function()
-    Whitelist = {}
-    print("Cleared Whitelist")
-end)
-
-
-Players.PlayerAdded:Connect(function(player)
-    if player ~= LocalPlayer then
-        table.insert(onlinePlayersList, player.Name)
-        if onlineListBox then
-            onlineListBox:Add(player.Name)
-        end
-    end
-end)
-
-Players.PlayerRemoving:Connect(function(player)
-    if player ~= LocalPlayer then
-        for i, name in ipairs(onlinePlayersList) do
-            if name == player.Name then
-                table.remove(onlinePlayersList, i)
-                break
-            end
-        end
-        
-        if onlineListBox then
-            onlineListBox:Remove(player.Name)
-        end
-        
-        for i, name in ipairs(TargetList) do
-            if name == player.Name then
-                table.remove(TargetList, i)
-                break
-            end
-        end
-        
-        for i, name in ipairs(Whitelist) do
-            if name == player.Name then
-                table.remove(Whitelist, i)
-                break
-            end
-        end
-    end 
 end)
 
 local Lighting = game:GetService("Lighting")
