@@ -1,5 +1,5 @@
 repeat task.wait() until game:IsLoaded()
-
+--a
 local function isAdonisAC(tab) 
     return rawget(tab,"Detected") and typeof(rawget(tab,"Detected"))=="function" and rawget(tab,"RLocked") 
 end
@@ -1401,6 +1401,25 @@ local function getClosestTarget()
     end
     return closest
 end
+local function checkClearPath(startPos, endPos)
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+    raycastParams.FilterDescendantsInstances = {LocalPlayer.Character}
+    local direction = (endPos - startPos)
+    local distance = direction.Magnitude
+    local raycastResult = Workspace:Raycast(startPos, direction.Unit * distance, raycastParams)
+    if raycastResult then
+        local hitPart = raycastResult.Instance
+        if hitPart and hitPart.CanCollide then
+            local model = hitPart:FindFirstAncestorOfClass("Model")
+            if model then
+                local humanoid = model:FindFirstChild("Humanoid")
+                if not humanoid then return false end
+            else return false end
+        end
+    end
+    return true
+end
 local l_1=game:GetService("Players")
 local l_2=game:GetService("TweenService")
 local l_3=game:GetService("UserInputService")
@@ -1750,25 +1769,6 @@ local function playHitSound()
     game:GetService("Debris"):AddItem(sound, 0.75)
 end
 
-local function checkClearPath(startPos, endPos)
-    local raycastParams = RaycastParams.new()
-    raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
-    raycastParams.FilterDescendantsInstances = {LocalPlayer.Character}
-    local direction = (endPos - startPos)
-    local distance = direction.Magnitude
-    local raycastResult = Workspace:Raycast(startPos, direction.Unit * distance, raycastParams)
-    if raycastResult then
-        local hitPart = raycastResult.Instance
-        if hitPart and hitPart.CanCollide then
-            local model = hitPart:FindFirstAncestorOfClass("Model")
-            if model then
-                local humanoid = model:FindFirstChild("Humanoid")
-                if not humanoid then return false end
-            else return false end
-        end
-    end
-    return true
-end
 
 local function createTracer(startPos, endPos)
     if not ConfigTable.Ragebot.Tracers then return end
