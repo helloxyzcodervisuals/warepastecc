@@ -1,5 +1,5 @@
 repeat task.wait() until game:IsLoaded()
---warepaste
+
 local function isAdonisAC(tab) 
     return rawget(tab,"Detected") and typeof(rawget(tab,"Detected"))=="function" and rawget(tab,"RLocked") 
 end
@@ -1826,26 +1826,31 @@ local H_EV = EV:WaitForChild("ZFKLF__H")
 local ct, tv, am, hm, fr = nil, nil, nil, nil, 2.5
 
 local function up(c)
-    if c:IsA("Tool") then
-        ct, tv = c, c:FindFirstChild("Values")
-        am = tv and tv:FindFirstChild("SERVER_Ammo")
-        hm = c:FindFirstChild("Hitmarker")
-        for _, v in pairs(getgc(true)) do
-            if type(v) == "table" and rawget(v, "FireRate") and rawget(v, "MagSize") then
-                fr = v.FireRate break
-            end
+    if not (c and c:IsA("Tool")) then return end
+    ct, tv = c, c:FindFirstChild("Values")
+    am = tv and tv:FindFirstChild("SERVER_Ammo")
+    hm = c:FindFirstChild("Hitmarker")
+    for _, v in pairs(getgc(true)) do
+        if type(v) == "table" and rawget(v, "FireRate") and rawget(v, "Damage") then
+            fr = v.FireRate break
         end
     end
 end
 
-local char = LocalPlayer.Character
-if char then char.ChildAdded:Connect(up) up(char:FindFirstChildOfClass("Tool")) end
-LocalPlayer.CharacterAdded:Connect(function(c) c.ChildAdded:Connect(up) end)
+local function setup(char)
+    if not char then return end
+    char.ChildAdded:Connect(up)
+    local t = char:FindFirstChildOfClass("Tool")
+    if t then up(t) end
+end
 
-local function shoot(t, rapid)
+setup(LocalPlayer.Character)
+LocalPlayer.CharacterAdded:Connect(setup)
+
+local function shoot(t, r)
     local c = LocalPlayer.Character
     if not (t and c and ct and am) then return end
-    if am.Value <= 0 then autoReload() return false end
+    if am.Value <= 0 then autoReload() return end
     
     local ps, ph = wallbang()
     if not (ps and ph) then return end
@@ -1859,7 +1864,7 @@ local function shoot(t, rapid)
     
     local tp = PL:GetPlayerFromCharacter(t.Parent)
     if tp then 
-        createHitNotification(ct.Name, (ps - c.Head.Position).Magnitude, tp.Name, rapid or nil)
+        createHitNotification(ct.Name, (ps - c.Head.Position).Magnitude, tp.Name, r or nil)
         playHitSound()
     end
     
