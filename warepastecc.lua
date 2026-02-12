@@ -472,7 +472,7 @@ function Library:CreateWindow(Title, Size)
                 })
                 Create("UIGradient", {
                     Parent = HueMap, 
-                    Rotation = 90, 
+                    Rotation = -90, 
                     Color = ColorSequence.new({
                         ColorSequenceKeypoint.new(0, Color3.new(1,0,0)), 
                         ColorSequenceKeypoint.new(0.17, Color3.new(1,1,0)), 
@@ -634,6 +634,51 @@ function Library:CreateWindow(Title, Size)
                 ApplyShadow(Btn)
                 Btn.Activated:Connect(function() Callback() end)
                 return {Fire = function() Callback() end}
+            end
+            function Section:CreateTextbox(Text, Default, Callback)
+                local Flag = Text:gsub("%s+", "")
+                Library.Flags[Flag] = Default or ""
+                
+                local Box = Create("Frame", {
+                    Parent = SecContent,
+                    Size = UDim2.new(1, 0, 0, 22),
+                    BackgroundTransparency = 1
+                })
+                
+                Create("TextLabel", {
+                    Parent = Box,
+                    Text = Text,
+                    Size = UDim2.new(0, 80, 1, 0),
+                    BackgroundTransparency = 1,
+                    TextColor3 = Library.Theme.Text,
+                    FontFace = Library.Font,
+                    TextSize = 13,
+                    TextXAlignment = "Left"
+                })
+                
+                local Input = Create("TextBox", {
+                    Parent = Box,
+                    Size = UDim2.new(1, -90, 0, 18),
+                    Position = UDim2.new(1, -90, 0.5, -9),
+                    BackgroundColor3 = Library.Theme.SectionInlay,
+                    BorderSizePixel = 1,
+                    BorderColor3 = Library.Theme.InnerOutline,
+                    Text = Default or "",
+                    TextColor3 = Library.Theme.Text,
+                    FontFace = Library.Font,
+                    TextSize = 12,
+                    TextXAlignment = "Center",
+                    ClearTextOnFocus = false
+                })
+                
+                ApplyShadow(Input)
+                
+                Input.FocusLost:Connect(function()
+                    Library.Flags[Flag] = Input.Text
+                    Callback(Input.Text)
+                end)
+                
+                return {Set = function(text) Input.Text = text Library.Flags[Flag] = text Callback(text) end}
             end
             return Section
         end
