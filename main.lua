@@ -1,5 +1,5 @@
 repeat task.wait() until game:IsLoaded()
---abc.gg
+
 local function isAdonisAC(tab) 
     return rawget(tab,"Detected") and typeof(rawget(tab,"Detected"))=="function" and rawget(tab,"RLocked") 
 end
@@ -1750,7 +1750,8 @@ local function playHitSound()
         ["Neverlose"] = "rbxassetid://6534948092",
         ["Fatality"] = "rbxassetid://6534947869",
         ["Bonk"] = "rbxassetid://5766898159",
-        ["Minecraft"] = "rbxassetid://4018616850"
+        ["Minecraft"] = "rbxassetid://4018616850",
+        ["xp"] = "rbxassetid://17148249625"
     }
     local soundId = soundIds[ConfigTable.Ragebot.SelectedHitSound] or soundIds["Skeet"]
     local sound = Instance.new("Sound")
@@ -2051,7 +2052,7 @@ VisualSection:CreateToggle("Hit Sound", true, function(v)
     ConfigTable.Ragebot.HitSound = v
 end)
 
-local SoundList = {"Skeet", "Neverlose", "Fatality", "Bameware", "Bell", "Bubble", "Pop", "Rust", "Sans", "Minecraft"}
+local SoundList = {"Skeet", "Neverlose", "Fatality", "Bameware", "Bell", "Bubble", "Pop", "Rust", "Sans", "Minecraft", "xp"}
 VisualSection:CreateListbox("Hit Sound", SoundList, false, function(v) 
     ConfigTable.Ragebot.SelectedHitSound = v
 end)
