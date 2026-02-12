@@ -2639,7 +2639,7 @@ do
                         State.MotorCache[motor] = {C0 = motor.C0, C1 = motor.C1}
                     end
                     motor.C0, motor.C1 = State.MotorCache[motor].C0, State.MotorCache[motor].C1
-                    motor.Enabled = false
+                    motor.Enabled = true
                 else
                     motor.Enabled = true
                     if State.MotorCache[motor] then
