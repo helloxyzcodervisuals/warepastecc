@@ -1,4 +1,4 @@
-then HttpService = game:GetService("HttpService")
+local HttpService = game:GetService("HttpService")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local Library = {
