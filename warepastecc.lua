@@ -1,4 +1,4 @@
-local HttpService = game:GetService("HttpService")
+then HttpService = game:GetService("HttpService")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local Library = {
@@ -20,16 +20,30 @@ local function Create(class, props)
     return inst
 end
 
-local function GetFont(name, file)
+local HttpService = game:GetService("HttpService")
+
+local function GetFont(name, file, directUrl)
     if not isfile(file) then 
-        writefile(file, game:HttpGet("https://github.com/rylepm/" .. file)) 
+        writefile(file, game:HttpGet(directUrl))
     end
-    local Data = {name = name, faces = {{name = "Normal", weight = 400, style = "Normal", assetId = getcustomasset(file)}}}
+    
+    local Data = {
+        name = name, 
+        faces = {{
+            name = "Normal", 
+            weight = 400, 
+            style = "Normal", 
+            assetId = getcustomasset(file)
+        }}
+    }
+    
     writefile(name .. ".font", HttpService:JSONEncode(Data))
     return Font.new(getcustomasset(name .. ".font"))
 end
 
-Library.Font = GetFont("ProggyClean", "ProggyClean.ttf")
+-- Direct URLs for the specific fonts
+Library.Font = GetFont("ProggyClean", "ProggyClean.ttf", "https://github.com/i77lhm/storage/blob/main/fonts/ProggyClean.ttf?raw=true")
+Library.SectionFont = GetFont("TahomaBold", "tahoma_bold.ttf", "https://github.com/i77lhm/storage/blob/main/fonts/tahoma_bold.ttf?raw=true")
 Library.SectionFont = GetFont("TahomaBold", "tahoma_bold.ttf")
 
 local function ApplyShadow(parent)
