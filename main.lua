@@ -31,6 +31,17 @@ for _,v in pairs(getgc(true)) do
 end
 local TargetList = {}
 local Whitelist = {}
+local function tableContains(t, value)
+    for _, v in ipairs(t) do if v == value then return true end end
+    return false
+end
+
+local function tableRemove(t, value)
+    for i, v in ipairs(t) do
+        if v == value then table.remove(t, i) return true end
+    end
+    return false
+end
 local LegitAimbotModule = {
     Enabled = false,
     Settings = {
@@ -1178,6 +1189,7 @@ Sec2:CreateSlider("Transparency", 0, 1, 0.3, "", function(v)
         end
     end
 end)
+
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
@@ -1217,8 +1229,44 @@ local ConfigTable = {
     }
 }
 
-local TargetList = {}
-local Whitelist = {}
+local function getClosestTarget()
+    local character = LocalPlayer.Character
+    local localHead = character and character:FindFirstChild("Head")
+    if not localHead then return nil end
+
+    local closest = nil
+    local shortestDistance = math.huge
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player == LocalPlayer then continue end
+        
+        local isWhitelisted = tableContains(Whitelist, player.Name)
+        if ConfigTable.Ragebot.FriendCheck and LocalPlayer:IsFriendsWith(player.UserId) then
+            isWhitelisted = true
+        end
+        
+        if ConfigTable.Ragebot.UseWhitelist and isWhitelisted then continue end
+        if ConfigTable.Ragebot.UseTargetList and not tableContains(TargetList, player.Name) then continue end
+        if ConfigTable.Ragebot.TeamCheck and player.Team == LocalPlayer.Team then continue end
+        
+        local char = player.Character
+        local hum = char and char:FindFirstChild("Humanoid")
+        local head = char and char:FindFirstChild("Head")
+        
+        if hum and head and hum.Health > 0 then
+            if char:FindFirstChildOfClass("ForceField") then continue end
+            if ConfigTable.Ragebot.LowHealthCheck and hum.Health < 15 then continue end
+            
+            local distance = (head.Position - localHead.Position).Magnitude
+            if distance < shortestDistance then
+                if typeof(canSeeTarget) == "function" and not canSeeTarget(head) then continue end
+                closest = head
+                shortestDistance = distance
+            end
+        end
+    end
+    return closest
+end
 local lastShotTime = 0
 local cachedBestPositions = {shootPos = nil, hitPos = nil, target = nil}
 local hitNotifications = {}
@@ -1367,89 +1415,7 @@ local function canSeeTarget(targetPart)
     end
     return true
 end
-local function getClosestTarget()
-    local closest = nil
-    local shortestDistance = math.huge
-    local targetCount = 0
-    
-    local character = LocalPlayer.Character
-    if not character then return nil end
-    local localHead = character:FindFirstChild("Head")
-    if not localHead then return nil end
-    
-    if ConfigTable.Ragebot.FriendCheck then
-        for _,player in pairs(Players:GetPlayers()) do
-            if player ~= LocalPlayer and LocalPlayer:IsFriendsWith(player.UserId) then
-                local found = false
-                for _,wlName in ipairs(Whitelist) do
-                    if wlName == player.Name then
-                        found = true
-                        break
-                    end
-                end
-                if not found then
-                    table.insert(Whitelist, player.Name)
-                end
-            end
-        end
-    end
-    
-    for _,player in pairs(Players:GetPlayers()) do
-        if player == LocalPlayer then continue end
-        
-        if ConfigTable.Ragebot.UseWhitelist then
-            local isWhitelisted = false
-            for _,wlName in ipairs(Whitelist) do
-                if wlName == player.Name then
-                    isWhitelisted = true
-                    break
-                end
-            end
-            if isWhitelisted then continue end
-        end
-        
-        if ConfigTable.Ragebot.UseTargetList then
-            local isTarget = false
-            for _,targetName in ipairs(TargetList) do
-                if targetName == player.Name then
-                    isTarget = true
-                    break
-                end
-            end
-            if not isTarget then continue end
-        end
-        
-        if ConfigTable.Ragebot.TeamCheck and player.Team == LocalPlayer.Team then continue end
-        local character = player.Character
-        if character then
-            local humanoid = character:FindFirstChild("Humanoid")
-            local head = character:FindFirstChild("Head")
-            if humanoid and humanoid.Health > 0 and head then
-                local hasForcefield = false
-                for _,child in pairs(character:GetChildren()) do 
-                    if child:IsA("ForceField") then 
-                        hasForcefield = true 
-                        break 
-                    end 
-                end
-                if hasForcefield then continue end
-                if ConfigTable.Ragebot.LowHealthCheck and humanoid.Health < 15 then continue end
-                local distance = (head.Position - localHead.Position).Magnitude
-                if ConfigTable.Ragebot.MaxTarget > 0 then 
-                    targetCount = targetCount + 1 
-                    if targetCount > ConfigTable.Ragebot.MaxTarget then break end 
-                end
-                if distance < shortestDistance then 
-                    if canSeeTarget(head) then 
-                        closest = head 
-                        shortestDistance = distance 
-                    end 
-                end
-            end
-        end
-    end
-    return closest
-end
+
 local function checkClearPath(startPos, endPos)
     local raycastParams = RaycastParams.new()
     raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
@@ -1999,7 +1965,7 @@ for _, player in pairs(Players:GetPlayers()) do
         table.insert(onlineOptions, player.Name)
     end
 end
-
+local currentSelectedPlayer = nil
 local onlineListBox = ManagementSection:CreateListbox("Online Players", onlineOptions, true, function(selected) 
     currentSelectedPlayer = selected
     print("Selected player:", selected)
@@ -2007,63 +1973,34 @@ end)
 
 ManagementSection:CreateButton("Add to Target List", function()
     if currentSelectedPlayer then
-        local alreadyInTarget = false
-        for _, name in ipairs(TargetList) do
-            if name == currentSelectedPlayer then
-                alreadyInTarget = true
-                break
-            end
-        end
-        
-        if not alreadyInTarget then
+        tableRemove(Whitelist, currentSelectedPlayer)
+        if not tableContains(TargetList, currentSelectedPlayer) then
             table.insert(TargetList, currentSelectedPlayer)
-            print("Added", currentSelectedPlayer, "to Target List")
         end
     end
 end)
 
 ManagementSection:CreateButton("Add to Whitelist", function()
     if currentSelectedPlayer then
-        local alreadyInWhitelist = false
-        for _, name in ipairs(Whitelist) do
-            if name == currentSelectedPlayer then
-                alreadyInWhitelist = true
-                break
-            end
-        end
-        
-        if not alreadyInWhitelist then
+        tableRemove(TargetList, currentSelectedPlayer)
+        if not tableContains(Whitelist, currentSelectedPlayer) then
             table.insert(Whitelist, currentSelectedPlayer)
-            print("Added", currentSelectedPlayer, "to Whitelist")
         end
     end
 end)
 
 ManagementSection:CreateButton("Clear Selected Player", function()
     if currentSelectedPlayer then
-        for i, name in ipairs(TargetList) do
-            if name == currentSelectedPlayer then
-                table.remove(TargetList, i)
-                print("Removed", currentSelectedPlayer, "from Target List")
-                break
-            end
-        end
-        
-        for i, name in ipairs(Whitelist) do
-            if name == currentSelectedPlayer then
-                table.remove(Whitelist, i)
-                print("Removed", currentSelectedPlayer, "from Whitelist")
-                break
-            end
-        end
+        tableRemove(TargetList, currentSelectedPlayer)
+        tableRemove(Whitelist, currentSelectedPlayer)
     end
 end)
 
 ManagementSection:CreateButton("Clear All Lists", function()
-    TargetList = {}
-    Whitelist = {}
-    print("Cleared both Target List and Whitelist")
+    table.clear(TargetList)
+    table.clear(Whitelist)
 end)
+
 
 Players.PlayerAdded:Connect(function(player)
     if player ~= LocalPlayer then
