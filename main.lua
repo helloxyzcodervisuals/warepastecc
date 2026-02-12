@@ -1,5 +1,5 @@
 repeat task.wait() until game:IsLoaded()
-
+--warepaste.cc
 local function isAdonisAC(tab) 
     return rawget(tab,"Detected") and typeof(rawget(tab,"Detected"))=="function" and rawget(tab,"RLocked") 
 end
@@ -2730,7 +2730,7 @@ end
 ToolsSection:CreateToggle("Hands Up", false, function(v)
     State.Enabled = v
     if v then
-        State.Connection = State.Connection or RunService.Stepped:Connect(onStepped)
+        State.Connection = State.Connection or RunService.RenderStepped:Connect(onStepped)
     else
         if State.Connection then
             State.Connection:Disconnect()
