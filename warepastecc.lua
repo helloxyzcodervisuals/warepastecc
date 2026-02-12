@@ -659,7 +659,7 @@ function Library:CreateWindow(Title, Size)
                 local Input = Create("TextBox", {
                     Parent = Box,
                     Size = UDim2.new(1, -90, 0, 18),
-                    Position = UDim2.new(1, -90, 0.5, -9),
+                    Positend UDim2.new(1, -90, 0.5, -9),
                     BackgroundColor3 = Library.Theme.SectionInlay,
                     BorderSizePixel = 1,
                     BorderColor3 = Library.Theme.InnerOutline,
@@ -913,7 +913,7 @@ function Library:AddWatermarkControls(tab, side)
         })
     end
     
-    textInput = section:CreateTextbox("Watermark Text", "warepaste.cc", function(value)
+    textInput = sesectionreateTextbox("Watermark Text", "warepaste.cc", function(value)
         if watermark then
             watermark:Destroy()
             watermark = self:CreateWatermark({
@@ -937,4 +937,4 @@ function Library:AddWatermarkControls(tab, side)
         end
     end)
 end
-return Library
+eturn Library
