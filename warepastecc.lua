@@ -44,7 +44,6 @@ end
 -- Direct URLs for the specific fonts
 Library.Font = GetFont("ProggyClean", "ProggyClean.ttf", "https://github.com/i77lhm/storage/blob/main/fonts/ProggyClean.ttf?raw=true")
 Library.SectionFont = GetFont("TahomaBold", "tahoma_bold.ttf", "https://github.com/i77lhm/storage/blob/main/fonts/tahoma_bold.ttf?raw=true")
-Library.SectionFont = GetFont("TahomaBold", "tahoma_bold.ttf")
 
 local function ApplyShadow(parent)
     return Create("UIGradient", {
