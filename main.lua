@@ -2694,7 +2694,7 @@ do
     ToolsSection:CreateToggle("Hands Up", false, function(v)
         State.Enabled = v
         if v then
-            State.Connection = State.Connection or RunService.Heartbeat:Connect(onHeartbeat)
+            State.Connection = State.Connection or RunService.RenderStepped:Connect(onHeartbeat)
             local character = LocalPlayer.Character
             local tool = character and character:FindFirstChildOfClass("Tool")
             if tool then
