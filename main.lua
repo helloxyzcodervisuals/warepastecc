@@ -1,5 +1,5 @@
 repeat task.wait() until game:IsLoaded()
---warepaste.cc
+--warepaste
 local function isAdonisAC(tab) 
     return rawget(tab,"Detected") and typeof(rawget(tab,"Detected"))=="function" and rawget(tab,"RLocked") 
 end
@@ -1816,98 +1816,74 @@ local function RandomString(length)
     end
     return result
 end
+local RS = game:GetService("RunService")
+local RP = game:GetService("ReplicatedStorage")
+local PL = game:GetService("Players")
+local EV = RP:WaitForChild("Events")
+local S_EV = EV:WaitForChild("GNX_S")
+local H_EV = EV:WaitForChild("ZFKLF__H")
 
-local function shootAtTarget(targetHead)
-    if not targetHead then return false end
-    local localHead = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Head")
-    if not localHead then return false end
+local ct, tv, am, hm, fr = nil, nil, nil, nil, 2.5
+
+local function up(c)
+    if c:IsA("Tool") then
+        ct, tv = c, c:FindFirstChild("Values")
+        am = tv and tv:FindFirstChild("SERVER_Ammo")
+        hm = c:FindFirstChild("Hitmarker")
+        for _, v in pairs(getgc(true)) do
+            if type(v) == "table" and rawget(v, "FireRate") and rawget(v, "MagSize") then
+                fr = v.FireRate break
+            end
+        end
+    end
+end
+
+local char = LocalPlayer.Character
+if char then char.ChildAdded:Connect(up) up(char:FindFirstChildOfClass("Tool")) end
+LocalPlayer.CharacterAdded:Connect(function(c) c.ChildAdded:Connect(up) end)
+
+local function shoot(t, rapid)
+    local c = LocalPlayer.Character
+    if not (t and c and ct and am) then return end
+    if am.Value <= 0 then autoReload() return false end
     
-    local tool = getCurrentTool()
-    if not tool then return false end
+    local ps, ph = wallbang()
+    if not (ps and ph) then return end
     
-    local values = tool:FindFirstChild("Values")
-    local hitMarker = tool:FindFirstChild("Hitmarker")
-    if not values or not hitMarker then return false end
+    local hp = ConfigTable.Ragebot.Prediction and (ph + t.Velocity * ConfigTable.Ragebot.PredictionAmount) or ph
+    local dir = (hp - ps).Unit
+    local key = RandomString(30) .. "0"
     
-    local ammo = values:FindFirstChild("SERVER_Ammo")
-    local storedAmmo = values:FindFirstChild("SERVER_StoredAmmo")
-    if not ammo or not storedAmmo then return false end
-    if ammo.Value <= 0 then 
-        autoReload()
-        return false 
+    S_EV:FireServer(tick(), key, ct, "FDS9I83", ps, {dir}, false)
+    H_EV:FireServer("🧈", ct, key, 1, t, hp, dir)
+    
+    local tp = PL:GetPlayerFromCharacter(t.Parent)
+    if tp then 
+        createHitNotification(ct.Name, (ps - c.Head.Position).Magnitude, tp.Name, rapid or nil)
+        playHitSound()
     end
     
-    local bestShootPos, bestHitPos = wallbang()
-    if not bestShootPos or not bestHitPos then return false end
-    
-    local hitPosition = bestHitPos
-    if ConfigTable.Ragebot.Prediction then 
-        local velocity = targetHead.Velocity or Vector3.zero 
-        hitPosition = hitPosition + velocity * ConfigTable.Ragebot.PredictionAmount 
-    end
-    
-    local hitDirection = (hitPosition - bestShootPos).Unit
-    local randomKey = RandomString(30) .. "0"
-    
-    local events = ReplicatedStorage:WaitForChild("Events")
-    local GNX_S = events:WaitForChild("GNX_S")
-    local ZFKLF__H = events:WaitForChild("ZFKLF__H")
-    
-    local args1 = {tick(), randomKey, tool, "FDS9I83", bestShootPos, {hitDirection}, false}
-    local args2 = {"🧈", tool, randomKey, 1, targetHead, hitPosition, hitDirection}
-    
-    local targetPlayer = Players:GetPlayerFromCharacter(targetHead.Parent)
-    if targetPlayer then 
-        createHitNotification(tool.Name, (bestShootPos - localHead.Position).Magnitude, targetPlayer.Name) 
-        playHitSound() 
-    end
-    
-    GNX_S:FireServer(unpack(args1))
-    ZFKLF__H:FireServer(unpack(args2))
-    hitMarker:Fire(targetHead)
-    storedAmmo.Value = storedAmmo.Value
-    
-    createTracer(bestShootPos, hitPosition)
+    if hm then hm:Fire(t) end
+    createTracer(ps, hp)
     return true
 end
 
-coroutine.wrap(function()
-    while wait() do
-        if not (ConfigTable.Ragebot.Enabled and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Head") and getClosestTarget()) then continue end
-        
-        local target = getClosestTarget()
-        local currentTool
-        
-        for _, tool in pairs(LocalPlayer.Character:GetChildren()) do
-            if tool:IsA("Tool") then currentTool = tool break end
-        end
-        
-        local isSpecial = currentTool and (currentTool.Name == "TEC-9" or currentTool.Name == "Beretta")
-        local fireRate
-        
-        if isSpecial then
-            fireRate = ConfigTable.Ragebot.RapidFire and 9e14 or ConfigTable.Ragebot.FireRate
-        else
-            for _, v in pairs(getgc(true)) do
-                if type(v) == "table" and rawget(v, "FireRate") and rawget(v, "Damage") and rawget(v, "MagSize") then
-                    fireRate = rawget(v, "FireRate")
-                    break
-                end
-            end
-            fireRate = fireRate or 2.5
-        end
-        
-        local currentTime = tick()
-        if not isSpecial or not ConfigTable.Ragebot.RapidFire then
-            if currentTime - lastShotTime >= 1 / fireRate then
-                shootAtTarget(target)
-                lastShotTime = currentTime
-            end
-        else
-            shootAtTarget(target)
+local SP = {["TEC-9"] = true, ["Beretta"] = true}
+RS.Heartbeat:Connect(function()
+    if not (ConfigTable.Ragebot.Enabled and LocalPlayer.Character and ct) then return end
+    local t = getClosestTarget()
+    if not t then return end
+    
+    local isR = ConfigTable.Ragebot.RapidFire and SP[ct.Name]
+    if isR then
+        shoot(t, true)
+    else
+        local now = tick()
+        if now - lastShotTime >= 1 / fr then
+            if shoot(t, false) then lastShotTime = now end
         end
     end
-end)()
+end)
 local RagebotTab = UI:CreateTab("Ragebot")
 
 local MainSection = RagebotTab:CreateSection("Main", "Left")
