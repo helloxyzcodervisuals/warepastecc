@@ -472,7 +472,7 @@ function Library:CreateWindow(Title, Size)
                 })
                 Create("UIGradient", {
                     Parent = HueMap, 
-                    Rotation = 90, 
+                    Rotation = -90, 
                     Color = ColorSequence.new({
                         ColorSequenceKeypoint.new(0, Color3.new(1,0,0)), 
                         ColorSequenceKeypoint.new(0.17, Color3.new(1,1,0)), 
