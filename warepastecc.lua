@@ -797,5 +797,99 @@ function Library:CreateThemeSection(tab, side)
     
     return themeSection
 end
+function Library:CreateWatermark(Config)
+    Config = Config or {}
+    
+    local Holder = Create("Frame", {
+        Parent = Screen,
+        Size = UDim2.new(0, 0, 0, 22),
+        Position = Config.Position or UDim2.new(0, 10, 0, 10),
+        BackgroundColor3 = Config.Background or Library.Theme.Main,
+        BorderSizePixel = 1,
+        BorderColor3 = Config.Border or Library.Theme.InnerOutline,
+        AutomaticSize = "X",
+        Visible = Config.Visible ~= false,
+        ZIndex = 100
+    })
+    
+    ApplyShadow(Holder)
+    
+    Create("UIPadding", {
+        Parent = Holder,
+        PaddingLeft = UDim.new(0, 8),
+        PaddingRight = UDim.new(0, 8),
+        PaddingTop = UDim.new(0, 3),
+        PaddingBottom = UDim.new(0, 3)
+    })
+    
+    Create("Frame", {
+        Parent = Holder,
+        Size = UDim2.new(0, 2, 1, -4),
+        Position = UDim2.new(0, 0, 0, 2),
+        BackgroundColor3 = Config.Accent or Library.Theme.Accent,
+        BorderSizePixel = 0
+    })
+    
+    local Text = Create("TextLabel", {
+        Parent = Holder,
+        Text = Config.Text or "warepaste.cc",
+        Size = UDim2.new(0, 0, 1, 0),
+        BackgroundTransparency = 1,
+        TextColor3 = Config.TextColor or Library.Theme.Text,
+        FontFace = Config.Font or Library.Font,
+        TextSize = Config.TextSize or 12,
+        TextXAlignment = "Left",
+        AutomaticSize = "X"
+    })
+    
+    if Config.ShowTime ~= false then
+        RunService.Heartbeat:Connect(function()
+            Text.Text = (Config.Text or "warepaste.cc") .. " | " .. os.date(Config.TimeFormat or "%H:%M:%S")
+        end)
+    end
+    
+    return Holder
+end
 
+function Library:AddWatermarkControls(tab, side)
+    local section = tab:CreateSection("Watermark", side)
+    
+    local watermark = nil
+    
+    local textInput
+    local function UpdateWatermark()
+        if watermark then
+            watermark:Destroy()
+        end
+        watermark = self:CreateWatermark({
+            Text = textInput and textInput.Text or "warepaste.cc",
+            ShowTime = true,
+            TimeFormat = "%H:%M:%S"
+        })
+    end
+    
+    textInput = section:CreateTextbox("Watermark Text", "warepaste.cc", function(value)
+        if watermark then
+            watermark:Destroy()
+            watermark = self:CreateWatermark({
+                Text = value,
+                ShowTime = true
+            })
+        end
+    end)
+    
+    section:CreateToggle("Show Watermark", true, function(state)
+        if state then
+            if not watermark then
+                UpdateWatermark()
+            else
+                watermark.Visible = true
+            end
+        else
+            if watermark then
+                watermark.Visible = false
+            end
+        end
+    end)
+end
 return Library
