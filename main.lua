@@ -1540,7 +1540,7 @@ local function wallbang()
     local function findAngleOffset()
         local minAngle = -30
         local maxAngle = 30
-        local steps = 99
+        local steps = 120
         
         for i = 1, steps do
             local angle = minAngle + (maxAngle - minAngle) * (i / steps)
@@ -1567,7 +1567,7 @@ local function wallbang()
     end
     
     local function findQuickPath()
-        for i = 1, 100 do
+        for i = 1, 120 do
             local shootX = startPos.X + math.random(-ConfigTable.Ragebot.ShootRange, ConfigTable.Ragebot.ShootRange)
             local shootY = startPos.Y + math.random(-ConfigTable.Ragebot.ShootRange, ConfigTable.Ragebot.ShootRange)
             local shootZ = startPos.Z + math.random(-ConfigTable.Ragebot.ShootRange, ConfigTable.Ragebot.ShootRange)
@@ -1607,10 +1607,10 @@ local function wallbang()
     
     if not shootPos then
         local fallbackY = math.random(-16, -14)
-        local shootX = startPos.X + math.random(-5, 5)
-        local shootZ = startPos.Z + math.random(-5, 5)
-        local hitX = targetPos.X + math.random(-5, 5)
-        local hitZ = targetPos.Z + math.random(-5, 5)
+        local shootX = startPos.X + math.random(-3, 3)
+        local shootZ = startPos.Z + math.random(-2, 3)
+        local hitX = targetPos.X + math.random(-3, 3)
+        local hitZ = targetPos.Z + math.random(-3, 3)
         
         shootPos = Vector3.new(shootX, fallbackY, shootZ)
         hitPos = Vector3.new(hitX, fallbackY, hitZ)
@@ -1731,6 +1731,7 @@ local function createHitNotification(toolName, offsetValue, playerName, usedCach
         updateScrollFrame()
     end)
 end
+
 local function playHitSound()
     if not ConfigTable.Ragebot.HitSound then return end
     local soundIds = {
@@ -1870,33 +1871,42 @@ local function shootAtTarget(targetHead)
 end
 
 coroutine.wrap(function()
-    while true do
-        if not ConfigTable.Ragebot.Enabled or not LocalPlayer.Character then 
-            task.wait()
+    while wait() do
+        if not (ConfigTable.Ragebot.Enabled and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Head") and getClosestTarget()) then continue end
+        
+        local target = getClosestTarget()
+        local currentTool
+        
+        for _, tool in pairs(LocalPlayer.Character:GetChildren()) do
+            if tool:IsA("Tool") then currentTool = tool break end
+        end
+        
+        local isSpecial = currentTool and (currentTool.Name == "TEC-9" or currentTool.Name == "Beretta")
+        local fireRate
+        
+        if isSpecial then
+            fireRate = ConfigTable.Ragebot.RapidFire and 9e14 or ConfigTable.Ragebot.FireRate
         else
-            local head = LocalPlayer.Character:FindFirstChild("Head")
-            if not head then 
-                task.wait()
-            else
-                local target = getClosestTarget()
-                if target then
-                    if ConfigTable.Ragebot.RapidFire then
-                        shootAtTarget(target)
-                    else
-                        local currentTime = tick()
-                        local waitTime = 1 / (ConfigTable.Ragebot.FireRate * 1)
-                        if currentTime - lastShotTime >= waitTime then
-                            shootAtTarget(target)
-                            lastShotTime = currentTime
-                        end
-                    end
+            for _, v in pairs(getgc(true)) do
+                if type(v) == "table" and rawget(v, "FireRate") and rawget(v, "Damage") and rawget(v, "MagSize") then
+                    fireRate = rawget(v, "FireRate")
+                    break
                 end
-                wait()
             end
+            fireRate = fireRate or 2.5
+        end
+        
+        local currentTime = tick()
+        if not isSpecial or not ConfigTable.Ragebot.RapidFire then
+            if currentTime - lastShotTime >= 1 / fireRate then
+                shootAtTarget(target)
+                lastShotTime = currentTime
+            end
+        else
+            shootAtTarget(target)
         end
     end
 end)()
-
 local RagebotTab = UI:CreateTab("Ragebot")
 
 local MainSection = RagebotTab:CreateSection("Main", "Left")
