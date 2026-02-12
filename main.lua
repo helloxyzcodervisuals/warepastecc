@@ -2613,3 +2613,104 @@ ToolsSection:CreateToggle("Hide Head", false, function(v)
     hideHeadEnabled = v
     updateHideHeadHook()
 end)
+do
+    local Players = game:GetService("Players")
+    local RunService = game:GetService("RunService")
+    local LocalPlayer = Players.LocalPlayer
+    
+    local State = {
+        Enabled = false,
+       -- HideHead = false,
+        OriginalNamecall = nil,
+        Connection = nil,
+        CurrentTool = nil,
+        MotorCache = {}
+    }
+
+    local function updateMotors(character, active)
+        if not character then return end
+        local root = character:FindFirstChild("Torso") or character:FindFirstChild("UpperTorso")
+        if not root then return end
+        
+        for _, motor in ipairs(root:GetDescendants()) do
+            if motor:IsA("Motor6D") then
+                if active then
+                    if not State.MotorCache[motor] then
+                        State.MotorCache[motor] = {C0 = motor.C0, C1 = motor.C1}
+                    end
+                    motor.C0, motor.C1 = State.MotorCache[motor].C0, State.MotorCache[motor].C1
+                    motor.Enabled = false
+                else
+                    motor.Enabled = true
+                    if State.MotorCache[motor] then
+                        motor.C0, motor.C1 = State.MotorCache[motor].C0, State.MotorCache[motor].C1
+                    end
+                end
+            end
+        end
+    end
+
+    local function updateHook()
+        if State.OriginalNamecall then
+            hookmetamethod(game, "__namecall", State.OriginalNamecall)
+            State.OriginalNamecall = nil
+        end
+        
+        if State.Enabled and State.CurrentTool then
+            State.OriginalNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+                local method = getnamecallmethod()
+                if tostring(method) == "FireServer" and self.Name == "MOVZREP" then
+                    local yValue = hideHeadEnabled and -6 or 0.9833956360816956
+                    local args = {{
+                        {
+                            Vector3.new(-5721.2001953125, 9834.1708984375, 971.5162353515625),
+                            Vector3.new(-4181.38818359375, 0.3198874592781067, 11.123311996459961),
+                            Vector3.new(0.006237113382667303, yValue, -0.18136750161647797),
+                            true, true, true, false
+                        },
+                        false, false, 15.8
+                    }}
+                    return State.OriginalNamecall(self, table.unpack(args))
+                end
+                return State.OriginalNamecall(self, ...)
+            end)
+        end
+    end
+
+    local function onHeartbeat()
+        local character = LocalPlayer.Character
+        if not character or not State.Enabled then return end
+        
+        local tool = character:FindFirstChildOfClass("Tool")
+        if tool ~= State.CurrentTool then
+            State.CurrentTool = tool
+            updateMotors(character, tool ~= nil)
+            updateHook()
+        end
+    end
+
+
+    
+    ToolsSection:CreateToggle("Hands Up", false, function(v)
+        State.Enabled = v
+        if v then
+            State.Connection = State.Connection or RunService.Heartbeat:Connect(onHeartbeat)
+            local character = LocalPlayer.Character
+            local tool = character and character:FindFirstChildOfClass("Tool")
+            if tool then
+                State.CurrentTool = tool
+                updateMotors(character, true)
+                updateHook()
+            end
+        else
+            if State.Connection then
+                State.Connection:Disconnect()
+                State.Connection = nil
+            end
+            updateMotors(LocalPlayer.Character, false)
+            State.MotorCache = {}
+            State.CurrentTool = nil
+            updateHook()
+        end
+    end)
+end
