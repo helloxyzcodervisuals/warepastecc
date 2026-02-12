@@ -1954,77 +1954,61 @@ TargetSection:CreateToggle("Use Whitelist", true, function(v)
     ConfigTable.Ragebot.UseWhitelist = v
 end)
 local ManagementSection = RagebotTab:CreateSection("Management", "Left")
-
-local TargetList = {}
-local Whitelist = {}
 local currentSelectedPlayer = nil
-
 local onlineOptions = {}
 for _, player in pairs(Players:GetPlayers()) do
     if player ~= LocalPlayer then
         table.insert(onlineOptions, player.Name)
     end
 end
-local currentSelectedPlayer = nil
-local onlineListBox = ManagementSection:CreateListbox("Online Players", onlineOptions, true, function(selected) 
-    currentSelectedPlayer = selected
-    print("Selected player:", selected)
+local onlineListBox = ManagementSection:CreateListbox("Online Players", onlineOptions, false, function(selected) 
+    if typeof(selected) == "table" then
+        currentSelectedPlayer = selected[1]
+    else
+        currentSelectedPlayer = selected
+    end
+    print("Selected player:", tostring(currentSelectedPlayer))
 end)
-
 ManagementSection:CreateButton("Add to Target List", function()
-    if currentSelectedPlayer then
-        tableRemove(Whitelist, currentSelectedPlayer)
-        if not tableContains(TargetList, currentSelectedPlayer) then
-            table.insert(TargetList, currentSelectedPlayer)
-        end
+    local name = tostring(currentSelectedPlayer)
+    if name and name ~= "nil" then
+        for i, v in ipairs(Whitelist) do if v == name then table.remove(Whitelist, i) break end end
+        local exists = false
+        for _, v in ipairs(TargetList) do if v == name then exists = true break end end
+        if not exists then table.insert(TargetList, name) end
     end
 end)
-
 ManagementSection:CreateButton("Add to Whitelist", function()
-    if currentSelectedPlayer then
-        tableRemove(TargetList, currentSelectedPlayer)
-        if not tableContains(Whitelist, currentSelectedPlayer) then
-            table.insert(Whitelist, currentSelectedPlayer)
-        end
+    local name = tostring(currentSelectedPlayer)
+    if name and name ~= "nil" then
+        for i, v in ipairs(TargetList) do if v == name then table.remove(TargetList, i) break end end
+        local exists = false
+        for _, v in ipairs(Whitelist) do if v == name then exists = true break end end
+        if not exists then table.insert(Whitelist, name) end
     end
 end)
-
 ManagementSection:CreateButton("Clear Selected Player", function()
-    if currentSelectedPlayer then
-        tableRemove(TargetList, currentSelectedPlayer)
-        tableRemove(Whitelist, currentSelectedPlayer)
+    local name = tostring(currentSelectedPlayer)
+    if name and name ~= "nil" then
+        for i, v in ipairs(TargetList) do if v == name then table.remove(TargetList, i) break end end
+        for i, v in ipairs(Whitelist) do if v == name then table.remove(Whitelist, i) break end end
     end
 end)
-
 ManagementSection:CreateButton("Clear All Lists", function()
     table.clear(TargetList)
     table.clear(Whitelist)
 end)
-
-
 Players.PlayerAdded:Connect(function(player)
     if player ~= LocalPlayer then
         onlineListBox:Add(player.Name)
     end
 end)
-
 Players.PlayerRemoving:Connect(function(player)
     if player ~= LocalPlayer then
         onlineListBox:Remove(player.Name)
-        
-        for i, name in ipairs(TargetList) do
-            if name == player.Name then
-                table.remove(TargetList, i)
-                break
-            end
-        end
-        
-        for i, name in ipairs(Whitelist) do
-            if name == player.Name then
-                table.remove(Whitelist, i)
-                break
-            end
-        end
+        local name = player.Name
+        for i, v in ipairs(TargetList) do if v == name then table.remove(TargetList, i) break end end
+        for i, v in ipairs(Whitelist) do if v == name then table.remove(Whitelist, i) break end end
     end
 end)
 local VisualSection = RagebotTab:CreateSection("Visuals", "Right")
