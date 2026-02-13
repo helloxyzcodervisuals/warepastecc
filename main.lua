@@ -1625,110 +1625,112 @@ local function wallbang()
     
     return shootPos, hitPos, false
 end
-local function createHitNotification(toolName, offsetValue, playerName, usedCache)
+local _H_CACHE = {}
+local hitNotifications = {}
+local _H_MAX = 7
+
+for i = 1, _H_MAX do
+    local b = Instance.new("Frame")
+    b.Name = "CacheBox"
+    b.Visible = false
+    table.insert(_H_CACHE, b)
+end
+
+local function createHitNotification(toolName, offsetValue, playerName)
     if not ConfigTable.Ragebot.HitNotify then return end
     
     local targetPlayer = game:GetService("Players"):FindFirstChild(playerName)
     local health = targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("Humanoid") and math.floor(targetPlayer.Character.Humanoid.Health) or 0
 
-    local ScreenGui = game:GetService("CoreGui"):FindFirstChild("HitNotifications") or Instance.new("ScreenGui")
+    local CoreGui = game:GetService("CoreGui")
+    local ScreenGui = CoreGui:FindFirstChild("HitNotifications") or Instance.new("ScreenGui", CoreGui)
     ScreenGui.Name = "HitNotifications"
-    ScreenGui.Parent = game:GetService("CoreGui")
     
-    local scrollFrame = ScreenGui:FindFirstChild("NotificationScroll") or Instance.new("ScrollingFrame")
-    scrollFrame.Name = "NotificationScroll"
-    scrollFrame.Parent = ScreenGui
-    scrollFrame.BackgroundTransparency = 1
-    scrollFrame.Size = UDim2.new(0, 600, 0, 400)
-    scrollFrame.Position = UDim2.new(0, 30, 0, 10)
-    scrollFrame.ScrollingEnabled = false
-    scrollFrame.ScrollBarThickness = 0
-    scrollFrame.ClipsDescendants = false
+    local scrollFrame = ScreenGui:FindFirstChild("NotificationScroll") or Instance.new("ScrollingFrame", ScreenGui)
+    if scrollFrame.Name ~= "NotificationScroll" then
+        scrollFrame.Name = "NotificationScroll"
+        scrollFrame.BackgroundTransparency = 1
+        scrollFrame.Size = UDim2.new(0, 600, 0, 400)
+        scrollFrame.Position = UDim2.new(0, 30, 0, 10)
+        scrollFrame.ScrollBarThickness = 0
+        scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+        scrollFrame.ScrollingEnabled = true
+        scrollFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
+        scrollFrame.ClipsDescendants = true
+        
+        local layout = Instance.new("UIListLayout", scrollFrame)
+        layout.Padding = UDim.new(0, 4)
+        layout.SortOrder = Enum.SortOrder.LayoutOrder
+    end
 
-    local THEME_COLOR = Color3.fromRGB(30, 30, 30)
-    local THEME_TRANSPARENCY = 0.5
-    local GLOW_WIDTH = 20
-    local HIT_COLOR = ConfigTable.Ragebot.HitColor
+    local box = table.remove(_H_CACHE)
+    local isFromCache = false
+    
+    if box then
+        isFromCache = true
+        box:ClearAllChildren()
+    else
+        box = Instance.new("Frame")
+    end
 
-    local box = Instance.new("Frame")
+    box.Visible = true
+    box.LayoutOrder = -tick()
     box.Parent = scrollFrame
-    box.BackgroundColor3 = THEME_COLOR
-    box.BackgroundTransparency = THEME_TRANSPARENCY
+    box.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    box.BackgroundTransparency = 0.5
     box.BorderSizePixel = 0
     
     local function createGlow(side)
-        local glow = Instance.new("Frame")
-        glow.Size = UDim2.new(0, GLOW_WIDTH, 1, 0)
-        glow.Position = (side == "Left") and UDim2.new(0, -GLOW_WIDTH, 0, 0) or UDim2.new(1, 0, 0, 0)
-        glow.BackgroundColor3 = THEME_COLOR
-        glow.BackgroundTransparency = THEME_TRANSPARENCY
+        local glow = Instance.new("Frame", box)
+        glow.Size = UDim2.new(0, 20, 1, 0)
+        glow.Position = (side == "Left") and UDim2.new(0, -20, 0, 0) or UDim2.new(1, 0, 0, 0)
+        glow.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+        glow.BackgroundTransparency = 0.5
         glow.BorderSizePixel = 0
-        glow.Parent = box
-        local grad = Instance.new("UIGradient")
+        local grad = Instance.new("UIGradient", glow)
         grad.Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0, (side == "Left" and 1 or 0)), NumberSequenceKeypoint.new(1, (side == "Left" and 0 or 1))})
-        grad.Parent = glow
     end
     createGlow("Left")
     createGlow("Right")
 
     local parts = {
-        {"hit ", Color3.fromRGB(255, 255, 255)},
-        {playerName .. " ", HIT_COLOR},
-        {"on head ", Color3.fromRGB(255, 255, 255)},
+        {"hit ", Color3.new(1, 1, 1)},
+        {playerName .. " ", ConfigTable.Ragebot.HitColor},
+        {"on head ", Color3.new(1, 1, 1)},
         {"Health at ", Color3.fromRGB(200, 200, 200)},
         {tostring(health) .. " ", Color3.fromRGB(0, 255, 120)},
         {"in ", Color3.fromRGB(200, 200, 200)},
-        {string.format("%.2f", offsetValue) .. " ", HIT_COLOR}
+        {string.format("%.2f", offsetValue) .. " ", ConfigTable.Ragebot.HitColor}
     }
     
-    if usedCache then
+    if isFromCache then
         table.insert(parts, {" via cache", Color3.fromRGB(150, 150, 150)})
     end
 
-    local offsetX = 8
-    local totalW, maxH = 0, 0
+    local offsetX, maxH = 8, 0
     for _, seg in ipairs(parts) do
-        local label = Instance.new("TextLabel")
-        label.Parent = box
+        local label = Instance.new("TextLabel", box)
         label.BackgroundTransparency = 1
-        label.BorderSizePixel = 0
         label.TextColor3 = seg[2]
         label.FontFace = l_26
         label.TextSize = 10
         label.Text = seg[1]
         label.AutomaticSize = Enum.AutomaticSize.XY
-        
         label.Position = UDim2.new(0, offsetX, 0, 0)
-        local xSize = label.TextBounds.X
-        offsetX = offsetX + xSize
-        totalW = offsetX
+        offsetX = offsetX + label.TextBounds.X
         maxH = math.max(maxH, label.TextBounds.Y)
     end
 
-    box.Size = UDim2.new(0, totalW + 8, 0, maxH + 4)
-    table.insert(hitNotifications, {box = box, createTime = tick()})
-
-    local function updateScrollFrame()
-        local currentY = 0
-        for i, notif in ipairs(hitNotifications) do
-            if notif.box and notif.box.Parent then
-                notif.box.Position = UDim2.new(0, GLOW_WIDTH, 0, currentY)
-                currentY = currentY + notif.box.AbsoluteSize.Y + 4
-            end
-        end
-    end
-
-    updateScrollFrame()
+    box.Size = UDim2.new(0, offsetX + 8, 0, maxH + 4)
 
     task.delay(ConfigTable.Ragebot.HitNotifyDuration, function()
-        for i, notif in ipairs(hitNotifications) do 
-            if notif.box == box then 
-                table.remove(hitNotifications, i) 
-                box:Destroy() 
-                break 
-            end 
+        box.Visible = false
+        box.Parent = nil
+        if #_H_CACHE < _H_MAX then
+            table.insert(_H_CACHE, box)
+        else
+            box:Destroy()
         end
-        updateScrollFrame()
     end)
 end
 
@@ -1784,7 +1786,7 @@ local function createTracer(startPos, endPos)
     beam.TextureSpeed = 1
     beam.Brightness = 2
     beam.LightEmission = 2
-    beam.FaceCamera = true
+    beam.FaceCamera = end
     
     local a0 = Instance.new("Attachment")
     local a1 = Instance.new("Attachment")
@@ -1819,14 +1821,19 @@ end
 local RS = game:GetService("RunService")
 local RP = game:GetService("ReplicatedStorage")
 local PL = game:GetService("Players")
+local LP = PL.LocalPlayer
 local EV = RP:WaitForChild("Events")
 local S_EV = EV:WaitForChild("GNX_S")
 local H_EV = EV:WaitForChild("ZFKLF__H")
 
 local ct, tv, am, hm, fr = nil, nil, nil, nil, 2.5
+local lastShotTime = 0
 
 local function up(c)
-    if not (c and c:IsA("Tool")) then return end
+    if not (c and c:IsA("Tool")) then 
+        if c == ct then ct = nil end
+        return 
+    end
     ct, tv = c, c:FindFirstChild("Values")
     am = tv and tv:FindFirstChild("SERVER_Ammo")
     hm = c:FindFirstChild("Hitmarker")
@@ -1840,16 +1847,17 @@ end
 local function setup(char)
     if not char then return end
     char.ChildAdded:Connect(up)
+    char.ChildRemoved:Connect(function(c) if c == ct then ct = nil end end)
     local t = char:FindFirstChildOfClass("Tool")
     if t then up(t) end
 end
 
-setup(LocalPlayer.Character)
-LocalPlayer.CharacterAdded:Connect(setup)
+if LP.Character then setup(LP.Character) end
+LP.CharacterAdded:Connect(setup)
 
 local function shoot(t, r)
-    local c = LocalPlayer.Character
-    if not (t and c and ct and am) then return end
+    local c = LP.Character
+    if not (t and c and ct and am and ct.Parent == c) then return end
     if am.Value <= 0 then autoReload() return end
     
     local ps, ph = wallbang()
@@ -1875,7 +1883,9 @@ end
 
 local SP = {["TEC-9"] = true, ["Beretta"] = true}
 RS.Heartbeat:Connect(function()
-    if not (ConfigTable.Ragebot.Enabled and LocalPlayer.Character and ct) then return end
+    local char = LP.Character
+    if not (ConfigTable.Ragebot.Enabled and char and ct and ct.Parent == char) then return end
+    
     local t = getClosestTarget()
     if not t then return end
     
