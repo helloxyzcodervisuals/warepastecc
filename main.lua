@@ -29,6 +29,7 @@ for _,v in pairs(getgc(true)) do
         end 
     end 
 end
+--uhhokok
 local TargetList = {}
 local Whitelist = {}
 local function tableContains(t, value)
@@ -1625,114 +1626,6 @@ local function wallbang()
     
     return shootPos, hitPos, false
 end
-local _H_CACHE = {}
-local hitNotifications = {}
-local _H_MAX = 7
-
-for i = 1, _H_MAX do
-    local b = Instance.new("Frame")
-    b.Name = "CacheBox"
-    b.Visible = false
-    table.insert(_H_CACHE, b)
-end
-
-local function createHitNotification(toolName, offsetValue, playerName)
-    if not ConfigTable.Ragebot.HitNotify then return end
-    
-    local targetPlayer = game:GetService("Players"):FindFirstChild(playerName)
-    local health = targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("Humanoid") and math.floor(targetPlayer.Character.Humanoid.Health) or 0
-
-    local CoreGui = game:GetService("CoreGui")
-    local ScreenGui = CoreGui:FindFirstChild("HitNotifications") or Instance.new("ScreenGui", CoreGui)
-    ScreenGui.Name = "HitNotifications"
-    
-    local scrollFrame = ScreenGui:FindFirstChild("NotificationScroll") or Instance.new("ScrollingFrame", ScreenGui)
-    if scrollFrame.Name ~= "NotificationScroll" then
-        scrollFrame.Name = "NotificationScroll"
-        scrollFrame.BackgroundTransparency = 1
-        scrollFrame.Size = UDim2.new(0, 600, 0, 400)
-        scrollFrame.Position = UDim2.new(0, 30, 0, 10)
-        scrollFrame.ScrollBarThickness = 0
-        scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
-        scrollFrame.ScrollingEnabled = true
-        scrollFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
-        scrollFrame.ClipsDescendants = true
-        
-        local layout = Instance.new("UIListLayout", scrollFrame)
-        layout.Padding = UDim.new(0, 4)
-        layout.SortOrder = Enum.SortOrder.LayoutOrder
-    end
-
-    local box = table.remove(_H_CACHE)
-    local isFromCache = false
-    
-    if box then
-        isFromCache = true
-        box:ClearAllChildren()
-    else
-        box = Instance.new("Frame")
-    end
-
-    box.Visible = true
-    box.LayoutOrder = -tick()
-    box.Parent = scrollFrame
-    box.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-    box.BackgroundTransparency = 0.5
-    box.BorderSizePixel = 0
-    
-    local function createGlow(side)
-        local glow = Instance.new("Frame", box)
-        glow.Size = UDim2.new(0, 20, 1, 0)
-        glow.Position = (side == "Left") and UDim2.new(0, -20, 0, 0) or UDim2.new(1, 0, 0, 0)
-        glow.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-        glow.BackgroundTransparency = 0.5
-        glow.BorderSizePixel = 0
-        local grad = Instance.new("UIGradient", glow)
-        grad.Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0, (side == "Left" and 1 or 0)), NumberSequenceKeypoint.new(1, (side == "Left" and 0 or 1))})
-    end
-    createGlow("Left")
-    createGlow("Right")
-
-    local parts = {
-        {"hit ", Color3.new(1, 1, 1)},
-        {playerName .. " ", ConfigTable.Ragebot.HitColor},
-        {"on head ", Color3.new(1, 1, 1)},
-        {"Health at ", Color3.fromRGB(200, 200, 200)},
-        {tostring(health) .. " ", Color3.fromRGB(0, 255, 120)},
-        {"in ", Color3.fromRGB(200, 200, 200)},
-        {string.format("%.2f", offsetValue) .. " ", ConfigTable.Ragebot.HitColor}
-    }
-    
-    if isFromCache then
-        table.insert(parts, {" via cache", Color3.fromRGB(150, 150, 150)})
-    end
-
-    local offsetX, maxH = 8, 0
-    for _, seg in ipairs(parts) do
-        local label = Instance.new("TextLabel", box)
-        label.BackgroundTransparency = 1
-        label.TextColor3 = seg[2]
-        label.FontFace = l_26
-        label.TextSize = 10
-        label.Text = seg[1]
-        label.AutomaticSize = Enum.AutomaticSize.XY
-        label.Position = UDim2.new(0, offsetX, 0, 0)
-        offsetX = offsetX + label.TextBounds.X
-        maxH = math.max(maxH, label.TextBounds.Y)
-    end
-
-    box.Size = UDim2.new(0, offsetX + 8, 0, maxH + 4)
-
-    task.delay(ConfigTable.Ragebot.HitNotifyDuration, function()
-        box.Visible = false
-        box.Parent = nil
-        if #_H_CACHE < _H_MAX then
-            table.insert(_H_CACHE, box)
-        else
-            box:Destroy()
-        end
-    end)
-end
 
 local function playHitSound()
     if not ConfigTable.Ragebot.HitSound then return end
@@ -1764,6 +1657,198 @@ local function playHitSound()
     game:GetService("Debris"):AddItem(sound, 0.75)
 end
 
+local HitNotificationCache = {
+    playerCache = setmetatable({}, {__mode = "kv"}),
+    playerCacheTime = {},
+    playerCacheTTL = 30,
+    uiCache = {
+        screenGui = nil,
+        scrollFrame = nil,
+        font = nil
+    },
+    colorCache = {},
+    stats = {hits = 0, misses = 0, reused = 0}
+}
+
+function HitNotificationCache:getPlayerKey(playerName)
+    return "player_" .. playerName
+end
+
+function HitNotificationCache:getPlayerData(playerName)
+    local key = self:getPlayerKey(playerName)
+    local cached = self.playerCache[key]
+    local cacheTime = self.playerCacheTime[key]
+    
+    if cached and cacheTime and (os.time() - cacheTime) < self.playerCacheTTL then
+        self.stats.hits = self.stats.hits + 1
+        return cached, true
+    end
+    
+    self.stats.misses = self.stats.misses + 1
+    local targetPlayer = game:GetService("Players"):FindFirstChild(playerName)
+    local health = targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("Humanoid") and math.floor(targetPlayer.Character.Humanoid.Health) or 0
+    
+    local data = {
+        player = targetPlayer,
+        health = health,
+        time = os.time()
+    }
+    
+    self.playerCache[key] = data
+    self.playerCacheTime[key] = os.time()
+    
+    return data, false
+end
+
+function HitNotificationCache:getColor(colorKey, defaultColor)
+    if not self.colorCache[colorKey] then
+        self.colorCache[colorKey] = defaultColor or Color3.fromRGB(255, 255, 255)
+    else
+        self.stats.reused = self.stats.reused + 1
+    end
+    return self.colorCache[colorKey]
+end
+
+function HitNotificationCache:getUI()
+    if not self.uiCache.screenGui or not self.uiCache.screenGui.Parent then
+        self.uiCache.screenGui = game:GetService("CoreGui"):FindFirstChild("HitNotifications") or Instance.new("ScreenGui")
+        self.uiCache.screenGui.Name = "HitNotifications"
+        self.uiCache.screenGui.Parent = game:GetService("CoreGui")
+    end
+    
+    if not self.uiCache.scrollFrame or not self.uiCache.scrollFrame.Parent then
+        self.uiCache.scrollFrame = self.uiCache.screenGui:FindFirstChild("NotificationScroll") or Instance.new("ScrollingFrame")
+        self.uiCache.scrollFrame.Name = "NotificationScroll"
+        self.uiCache.scrollFrame.Parent = self.uiCache.screenGui
+        self.uiCache.scrollFrame.BackgroundTransparency = 1
+        self.uiCache.scrollFrame.Size = UDim2.new(0, 600, 0, 400)
+        self.uiCache.scrollFrame.Position = UDim2.new(0, 30, 0, 10)
+        self.uiCache.scrollFrame.ScrollingEnabled = false
+        self.uiCache.scrollFrame.ScrollBarThickness = 0
+        self.uiCache.scrollFrame.ClipsDescendants = false
+    end
+    
+    if not self.uiCache.font then
+        self.uiCache.font = l_26
+    end
+    
+    return self.uiCache.screenGui, self.uiCache.scrollFrame, self.uiCache.font
+end
+
+function HitNotificationCache:cleanup()
+    local now = os.time()
+    for key, time in pairs(self.playerCacheTime) do
+        if now - time > self.playerCacheTTL * 2 then
+            self.playerCache[key] = nil
+            self.playerCacheTime[key] = nil
+        end
+    end
+end
+
+hitNotifications = hitNotifications or {}
+
+local function createHitNotification(toolName, offsetValue, playerName, usedCache)
+    if not ConfigTable.Ragebot.HitNotify then return end
+    
+    HitNotificationCache:cleanup()
+    
+    local playerData, fromCache = HitNotificationCache:getPlayerData(playerName)
+    local health = playerData.health
+    
+    local ScreenGui, scrollFrame, font = HitNotificationCache:getUI()
+    
+    local THEME_COLOR = HitNotificationCache:getColor("theme", Color3.fromRGB(30, 30, 30))
+    local THEME_TRANSPARENCY = 0.5
+    local GLOW_WIDTH = 20
+    local HIT_COLOR = HitNotificationCache:getColor("hit", ConfigTable.Ragebot.HitColor)
+    local WHITE = HitNotificationCache:getColor("white", Color3.fromRGB(255, 255, 255))
+    local GRAY = HitNotificationCache:getColor("gray", Color3.fromRGB(200, 200, 200))
+    local GREEN = HitNotificationCache:getColor("green", Color3.fromRGB(0, 255, 120))
+    local DARK_GRAY = HitNotificationCache:getColor("dark_gray", Color3.fromRGB(150, 150, 150))
+    
+    local box = Instance.new("Frame")
+    box.Parent = scrollFrame
+    box.BackgroundColor3 = THEME_COLOR
+    box.BackgroundTransparency = THEME_TRANSPARENCY
+    box.BorderSizePixel = 0
+    
+    local function createGlow(side)
+        local glow = Instance.new("Frame")
+        glow.Size = UDim2.new(0, GLOW_WIDTH, 1, 0)
+        glow.Position = (side == "Left") and UDim2.new(0, -GLOW_WIDTH, 0, 0) or UDim2.new(1, 0, 0, 0)
+        glow.BackgroundColor3 = THEME_COLOR
+        glow.BackgroundTransparency = THEME_TRANSPARENCY
+        glow.BorderSizePixel = 0
+        glow.Parent = box
+        local grad = Instance.new("UIGradient")
+        grad.Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0, (side == "Left" and 1 or 0)), NumberSequenceKeypoint.new(1, (side == "Left" and 0 or 1))})
+        grad.Parent = glow
+    end
+    createGlow("Left")
+    createGlow("Right")
+    
+    local cacheIndicator = (fromCache or usedCache) and " via cache" or ""
+    local cacheColor = fromCache and HIT_COLOR or DARK_GRAY
+    
+    local parts = {
+        {"hit ", WHITE},
+        {playerName .. " ", HIT_COLOR},
+        {"on head ", WHITE},
+        {"Health at ", GRAY},
+        {tostring(health) .. " ", GREEN},
+        {"in ", GRAY},
+        {string.format("%.2f", offsetValue) .. " ", HIT_COLOR}
+    }
+    
+    if cacheIndicator ~= "" then
+        table.insert(parts, {cacheIndicator, cacheColor})
+    end
+    
+    local offsetX = 8
+    local totalW, maxH = 0, 0
+    for _, seg in ipairs(parts) do
+        local label = Instance.new("TextLabel")
+        label.Parent = box
+        label.BackgroundTransparency = 1
+        label.BorderSizePixel = 0
+        label.TextColor3 = seg[2]
+        label.FontFace = font
+        label.TextSize = 10
+        label.Text = seg[1]
+        label.AutomaticSize = Enum.AutomaticSize.XY
+        label.Position = UDim2.new(0, offsetX, 0, 0)
+        local xSize = label.TextBounds.X
+        offsetX = offsetX + xSize
+        totalW = offsetX
+        maxH = math.max(maxH, label.TextBounds.Y)
+    end
+    
+    box.Size = UDim2.new(0, totalW + 8, 0, maxH + 4)
+    table.insert(hitNotifications, {box = box, createTime = tick()})
+    
+    local function updateScrollFrame()
+        local currentY = 0
+        for i, notif in ipairs(hitNotifications) do
+            if notif.box and notif.box.Parent then
+                notif.box.Position = UDim2.new(0, GLOW_WIDTH, 0, currentY)
+                currentY = currentY + notif.box.AbsoluteSize.Y + 4
+            end
+        end
+    end
+    
+    updateScrollFrame()
+    
+    task.delay(ConfigTable.Ragebot.HitNotifyDuration, function()
+        for i, notif in ipairs(hitNotifications) do 
+            if notif.box == box then 
+                table.remove(hitNotifications, i) 
+                box:Destroy() 
+                break 
+            end 
+        end
+        updateScrollFrame()
+    end)
+end
 
 local tracerTextures = {
     ["Default"] = "rbxassetid://7136858729",
@@ -1818,84 +1903,98 @@ local function RandomString(length)
     end
     return result
 end
-local RS = game:GetService("RunService")
-local RP = game:GetService("ReplicatedStorage")
-local PL = game:GetService("Players")
-local LP = PL.LocalPlayer
-local EV = RP:WaitForChild("Events")
-local S_EV = EV:WaitForChild("GNX_S")
-local H_EV = EV:WaitForChild("ZFKLF__H")
 
-local ct, tv, am, hm, fr = nil, nil, nil, nil, 2.5
-local lastShotTime = 0
-
-local function up(c)
-    if not (c and c:IsA("Tool")) then 
-        if c == ct then ct = nil end
-        return 
-    end
-    ct, tv = c, c:FindFirstChild("Values")
-    am = tv and tv:FindFirstChild("SERVER_Ammo")
-    hm = c:FindFirstChild("Hitmarker")
-    for _, v in pairs(getgc(true)) do
-        if type(v) == "table" and rawget(v, "FireRate") and rawget(v, "Damage") then
-            fr = v.FireRate break
-        end
-    end
-end
-
-local function setup(char)
-    if not char then return end
-    char.ChildAdded:Connect(up)
-    char.ChildRemoved:Connect(function(c) if c == ct then ct = nil end end)
-    local t = char:FindFirstChildOfClass("Tool")
-    if t then up(t) end
-end
-
-if LP.Character then setup(LP.Character) end
-LP.CharacterAdded:Connect(setup)
-
-local function shoot(t, r)
-    local c = LP.Character
-    if not (t and c and ct and am and ct.Parent == c) then return end
-    if am.Value <= 0 then autoReload() return end
+local function shootAtTarget(targetHead)
+    if not targetHead then return false end
+    local localHead = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Head")
+    if not localHead then return false end
     
-    local ps, ph = wallbang()
-    if not (ps and ph) then return end
+    local tool = getCurrentTool()
+    if not tool then return false end
     
-    local hp = ConfigTable.Ragebot.Prediction and (ph + t.Velocity * ConfigTable.Ragebot.PredictionAmount) or ph
-    local dir = (hp - ps).Unit
-    local key = RandomString(30) .. "0"
+    local values = tool:FindFirstChild("Values")
+    local hitMarker = tool:FindFirstChild("Hitmarker")
+    if not values or not hitMarker then return false end
     
-    S_EV:FireServer(tick(), key, ct, "FDS9I83", ps, {dir}, false)
-    H_EV:FireServer("🧈", ct, key, 1, t, hp, dir)
-    
-    local tp = PL:GetPlayerFromCharacter(t.Parent)
-    if tp then 
-        createHitNotification(ct.Name, (ps - c.Head.Position).Magnitude, tp.Name, r or nil)
-        playHitSound()
+    local ammo = values:FindFirstChild("SERVER_Ammo")
+    local storedAmmo = values:FindFirstChild("SERVER_StoredAmmo")
+    if not ammo or not storedAmmo then return false end
+    if ammo.Value <= 0 then 
+        autoReload()
+        return false 
     end
     
-    if hm then hm:Fire(t) end
-    createTracer(ps, hp)
+    local bestShootPos, bestHitPos = wallbang()
+    if not bestShootPos or not bestHitPos then return false end
+    
+    local hitPosition = bestHitPos
+    if ConfigTable.Ragebot.Prediction then 
+        local velocity = targetHead.Velocity or Vector3.zero 
+        hitPosition = hitPosition + velocity * ConfigTable.Ragebot.PredictionAmount 
+    end
+    
+    local hitDirection = (hitPosition - bestShootPos).Unit
+    local randomKey = RandomString(30) .. "0"
+    
+    local events = ReplicatedStorage:WaitForChild("Events")
+    local GNX_S = events:WaitForChild("GNX_S")
+    local ZFKLF__H = events:WaitForChild("ZFKLF__H")
+    
+    local args1 = {tick(), randomKey, tool, "FDS9I83", bestShootPos, {hitDirection}, false}
+    local args2 = {"🧈", tool, randomKey, 1, targetHead, hitPosition, hitDirection}
+    
+    local targetPlayer = Players:GetPlayerFromCharacter(targetHead.Parent)
+    if targetPlayer then 
+        createHitNotification(tool.Name, (bestShootPos - localHead.Position).Magnitude, targetPlayer.Name) 
+        playHitSound() 
+    end
+    
+    GNX_S:FireServer(unpack(args1))
+    ZFKLF__H:FireServer(unpack(args2))
+    hitMarker:Fire(targetHead)
+    storedAmmo.Value = storedAmmo.Value
+    
+    createTracer(bestShootPos, hitPosition)
     return true
 end
 
-local SP = {["TEC-9"] = true, ["Beretta"] = true}
+local RS = game:GetService("RunService")
+local LP = game:GetService("Players").LocalPlayer
+local lastShotTime = 0
+
+local function getGunData()
+    for _, v in pairs(getgc(true)) do
+        if type(v) == "table" and rawget(v, "FireRate") and rawget(v, "Damage") and rawget(v, "MagSize") then
+            return v.FireRate
+        end
+    end
+    return 2.5
+end
+
 RS.Heartbeat:Connect(function()
     local char = LP.Character
-    if not (ConfigTable.Ragebot.Enabled and char and ct and ct.Parent == char) then return end
+    if not (ConfigTable.Ragebot.Enabled and char and char:FindFirstChild("Head")) then return end
     
-    local t = getClosestTarget()
-    if not t then return end
+    local target = getClosestTarget()
+    if not target then return end
     
-    local isR = ConfigTable.Ragebot.RapidFire and SP[ct.Name]
-    if isR then
-        shoot(t, true)
+    local currentTool = char:FindFirstChildOfClass("Tool")
+    if not currentTool then return end
+
+    local isSpecial = (currentTool.Name == "TEC-9" or currentTool.Name == "Beretta")
+    local isRapid = ConfigTable.Ragebot.RapidFire and isSpecial
+    
+    if isRapid then
+        for i = 1, 1 do 
+            shootAtTarget(target) 
+        end
     else
+        local fireRate = isSpecial and ConfigTable.Ragebot.FireRate or getGunData()
         local now = tick()
-        if now - lastShotTime >= 1 / fr then
-            if shoot(t, false) then lastShotTime = now end
+        
+        if now - lastShotTime >= (1 / fireRate) then
+            shootAtTarget(target)
+            lastShotTime = now
         end
     end
 end)
